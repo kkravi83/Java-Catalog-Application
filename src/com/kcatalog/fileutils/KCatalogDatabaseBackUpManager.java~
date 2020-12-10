@@ -1,0 +1,21 @@
+package com.kcatalog.fileutils;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import java.io.File;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.fileutils.Mp3FileDto;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class KCatalogDatabaseBackUpManager {
+	
+	private String databaseBkupLocation = KCatalogConfigOptions.getOptionValue(
+											KCatalogConstants.CONFIG_DATABASE_LOCATION);
+	
+	private String databaseBkupFileNamePrefix = "kcatalogBkup";
+	
+	public KCatalogDatabaseBackUpManager() {
+		
+	}	
+	
+}

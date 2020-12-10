@@ -1,0 +1,188 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.xmlschema;
+
+import com.kcatalog.xmlschema.KCatalogXMLSchemaBase;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaLookup;
+import com.kcatalog.common.KCatalogConstants;
+import org.w3c.dom.Document;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Element;
+import org.w3c.dom.CDATASection;
+import org.w3c.dom.Node;
+import org.w3c.dom.Text;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.NamedNodeMap;
+import java.io.File;
+import java.util.*;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.fileutils.Mp3FileDto;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.dom.DOMSource;
+import com.kcatalog.fileutils.M3UPlayListManager;
+import com.kcatalog.common.KCatalogCommonUtility;
+
+public class KCatalogXMLSchemaLocationMapping extends KCatalogXMLSchemaBase 
+								implements Runnable {
+	
+	private static KCatalogXMLSchemaLocationMapping currentInstance = null;
+	private HashMap locationMap = new HashMap();
+	private String [] statusMessage = new String[] {"Please Wait",""};
+	private Boolean commitComplete = Boolean.valueOf(false);
+	
+	private void iterateAndChangePlaylist(){
+		//System.out.println("iterateAndChangePlaylist " );
+		M3UPlayListManager manager = M3UPlayListManager.getInstance();
+		manager.mapLocations(locationMap);
+	}
+	
+	public boolean getCommitComplete(){
+		synchronized(this.commitComplete){
+			return commitComplete.booleanValue();
+		}
+	}
+	
+	private void setCommitComplete(boolean commitComplete){
+		synchronized(this.commitComplete){
+			this.commitComplete = Boolean.valueOf(commitComplete);
+		}
+	}
+	
+	public String[] getStatusMessage(){
+		synchronized(this.statusMessage){
+			return statusMessage;
+		}
+	}
+	
+	private void setStatusMessage(String message1,String message2){
+		synchronized(this.statusMessage){
+			statusMessage[0] = message1;
+			statusMessage[1] = message2;
+		}
+	}
+	
+	
+	private KCatalogXMLSchemaLocationMapping() {
+		currentInstance = this;
+		commitComplete = Boolean.valueOf(false);
+	}	
+			
+	public static KCatalogXMLSchemaLocationMapping getInstance(){
+		currentInstance = (null == currentInstance)?new KCatalogXMLSchemaLocationMapping():
+									currentInstance;
+		return currentInstance;
+	}
+	
+	
+	public void addToLocationMap(String oldLocation,String newLocation){		
+		locationMap.put(oldLocation,
+				KCatalogCommonUtility.removeSeparatorAtEnd(newLocation));
+	}
+	
+	public Map getLocationMap(){
+		return locationMap;
+	}
+		
+		 
+	public boolean isEmpty(){
+		return locationMap.isEmpty();
+	}	 	
+	
+	public boolean rollBack(){		
+		currentInstance = null;
+		return true;
+	}
+	
+	public void commitInNewThread(){
+		Thread t = new Thread(this);
+		t.start();
+	}
+	
+	public void commit(){
+		changeLocationsInLookUpFile();
+	}
+	
+	private void changeLocationsInLookUpFile(){
+		setCommitComplete(false);
+		iterateAndChangeLookUp();
+		iterateAndChangeMp3InfoFiles();
+		iterateAndChangePlaylist();
+		locationMap.clear();
+		setCommitComplete(true);
+	}	
+	
+	private void iterateAndChangeLookUp(){
+		String lookUpFilePath = this.getLookUpFilePath();
+		Document docLookUp = this.getDocumentFromFactory(lookUpFilePath);
+		iterateAndChangeLocationsInDocument(docLookUp);
+		this.writeDocToFile(docLookUp,lookUpFilePath);
+	}
+	
+	private void iterateAndChangeMp3InfoFiles(){
+		String lastLocId = KCatalogXMLSchemaLookup.getLastAddedLocationId();
+		int lastLocIdInt = Integer.valueOf(lastLocId).intValue();
+		for(int i=1;i<=lastLocIdInt;i++){
+			String filePath = this.getXmlFilePath(String.valueOf(i));	
+			if(new File(filePath).exists()){
+				Document doc = this.getDocumentFromFactory(filePath);
+				iterateAndChangeLocationsInDocument(doc);
+				this.writeDocToFile(doc,filePath);
+			}
+		}
+	}
+	
+	public String contains(String oldLoc){
+		 return KCatalogCommonUtility.getNewLocFromLocMap(locationMap,oldLoc);	
+	}
+	
+	private void iterateAndChangeLocationsInDocument(Document doc){
+		Element root = doc.getDocumentElement();
+		NodeList fileLocationList = root.getElementsByTagName(
+						KCatalogConstants.MP3_XML_FILELOCATION);
+		for(int i=0;i<fileLocationList.getLength();i++){
+			Node fileLoc = (Node)fileLocationList.item(i);
+			NamedNodeMap fileLocValMap = fileLoc.getAttributes();
+			Node fileValNode = fileLocValMap.getNamedItem("value");
+			String oldLoc = (String)fileValNode.getNodeValue();			
+			oldLoc = oldLoc.trim();						
+			String newLoc =
+			  KCatalogCommonUtility.getNewLocFromLocMap(locationMap,oldLoc);
+			if(null != newLoc){
+				setStatusMessage("Changing " + oldLoc,"To "+ newLoc);
+				fileValNode.setNodeValue(newLoc.trim());
+			}else{
+				setStatusMessage("Processing " + oldLoc,"");
+			}			
+			/*String[] str = this.getStatusMessage();
+			System.out.println(	str[0] + " " + str[1]);*/
+		}
+	}
+	
+	public void run(){
+		this.commit();
+	}
+}

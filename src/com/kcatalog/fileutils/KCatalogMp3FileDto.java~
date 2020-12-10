@@ -1,0 +1,6 @@
+
+package com.kcatalog.fileutils;
+
+
+public class KCatalogMp3FileDto {
+}

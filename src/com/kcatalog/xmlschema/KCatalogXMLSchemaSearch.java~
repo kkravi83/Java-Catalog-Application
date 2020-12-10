@@ -1,0 +1,675 @@
+package com.kcatalog.xmlschema;
+
+import com.kcatalog.xmlschema.KCatalogXMLSchemaBase;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaFileReader;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import com.kcatalog.common.KCatalogCommonDto;
+import com.kcatalog.common.KCatalogCommonUtility;
+import org.w3c.dom.Document;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.NamedNodeMap;
+import java.io.File;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.fileutils.Mp3FileDto;
+import com.kcatalog.xmlschema.KCatalogSchemaMp3FileDto;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaLookup;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaMp3AttributeLookUpManager;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaMp3AttributeLookUp;
+import java.util.ArrayList;
+import java.util.Stack;
+import java.util.Iterator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class KCatalogXMLSchemaSearch extends KCatalogXMLSchemaBase{
+	
+	private  static boolean instancePresent = false;
+	private  static int currentPos = 0;
+	private  static int maxResultNo = 0;
+	private  static int totalCount = 0;
+	private  static Mp3FileDto searchMp3FileDto = null;
+	private  static String searchOperationType = "";
+	private  static boolean exactMatch = false;
+	private  static ArrayList searchLocationIdList = new ArrayList();	
+	private  static KCatalogXMLSchemaSearch currRef = null;
+	private static  boolean breakIfCommentFound = false;
+	
+			
+	public static String ATTR_ARTIST = KCatalogXMLSchemaMp3AttributeLookUp.LOOKUP_TYPE_ARTIST;
+	public static String ATTR_ALBUM  =  KCatalogXMLSchemaMp3AttributeLookUp.LOOKUP_TYPE_ALBUM;
+	public static String ATTR_GENRE  = KCatalogXMLSchemaMp3AttributeLookUp.LOOKUP_TYPE_GENRE;	
+	public static String ATTR_TITLE  = KCatalogXMLSchemaMp3AttributeLookUp.LOOKUP_TYPE_TITLE;	
+	public static String ATTR_COMMENT = KCatalogXMLSchemaMp3AttributeLookUp.LOOKUP_TYPE_COMMENT;
+	
+	
+	private KCatalogXMLSchemaSearch(){
+	}
+	
+	private void initialize(Mp3FileDto mp3FileDto,
+								String opType,
+									boolean matchType,
+									boolean isBrowseMode,
+									boolean countRequired){
+		instancePresent = true;
+		currentPos = 0;
+		if(isBrowseMode){
+			maxResultNo = Integer.valueOf(KCatalogConfigOptions.getOptionValue(
+								KCatalogConstants.CONFIG_MAX_MP3_PER_VIEW_BROWSE).trim()).intValue();
+		}else{
+			maxResultNo = Integer.valueOf(KCatalogConfigOptions.getOptionValue(
+								KCatalogConstants.CONFIG_MAX_MP3_PER_VIEW).trim()).intValue();
+		}
+		searchMp3FileDto = mp3FileDto;
+		exactMatch = matchType;
+		searchOperationType = opType;		
+		if(countRequired){
+			totalCount = getTotalCount();
+		}
+		
+		
+		//System.out.println("total count "+ totalCount);
+	}
+	
+	public static void close(){
+		
+		
+		instancePresent = false;
+		currentPos = 0;
+		maxResultNo = 0;
+		searchMp3FileDto = null;
+		exactMatch = false;;
+		searchOperationType = "";
+		totalCount = 0;
+		searchLocationIdList = new ArrayList();
+		currRef = null;
+		breakIfCommentFound = false;
+	}
+	
+	public ArrayList getAttributeValuesForMp3(String searchAttribute){
+		return findAttributesInFiles(searchAttribute);
+	}
+	
+	private ArrayList findAttributesInFiles(String searchAttribute){
+		ArrayList resultList = new ArrayList();
+		/*String lastLocId = KCatalogXMLSchemaLookup.getLastAddedLocationId();
+		int lastLocIdInt = Integer.valueOf(lastLocId).intValue();*/			
+	/*	for(int i=1;i<=lastLocIdInt;i++){
+			String filePath = this.getXmlFilePath(String.valueOf(i));			
+			if(new File(filePath).exists()){
+				Document doc = this.getDocumentFromFactory(filePath);
+				ArrayList listFromFile = findAttributesInDoc(doc,searchAttribute);			
+				for(int j=0;j<listFromFile.size();j++){
+					String str = listFromFile.get(j).toString().trim();
+					if(!resultList.contains(str)){
+						resultList.add(str);
+					}
+				}
+			}
+		}*/
+		KCatalogXMLSchemaMp3AttributeLookUpManager lookupManager =
+					KCatalogXMLSchemaMp3AttributeLookUpManager.getInstance();							
+		return lookupManager.getAllAttributeValues(searchAttribute);
+		//return resultList;
+	}
+	
+	private ArrayList findAttributesInDoc(Document doc,String searchAttribute){
+		ArrayList list = new ArrayList();
+		Element root = doc.getDocumentElement();
+		NodeList fileLocationList = root.getElementsByTagName(
+											KCatalogConstants.MP3_XML_FILELOCATION);
+		for(int i=0;i<fileLocationList.getLength();i++){
+			Node fileLoc = (Node)fileLocationList.item(i);
+			NodeList mp3FileNodes = fileLoc.getChildNodes();
+			for(int j=0;j<mp3FileNodes.getLength();j++){
+				Node mp3FileNode = mp3FileNodes.item(j);
+				addSearchAttributeValueToList(mp3FileNode,searchAttribute,list);
+			}
+		}
+		return list;
+	}
+	
+	private void addSearchAttributeValueToList(Node mp3FileNode,
+						String searchAttribute,ArrayList list){
+		String res = "";;
+		if(this.ATTR_ALBUM.equals(searchAttribute)){
+			res = this.getTextNodeWithName(mp3FileNode,
+							KCatalogConstants.MP3_XML_ALBUM);
+		}	
+		if(this.ATTR_ARTIST.equals(searchAttribute)){
+			res = this.getTextNodeWithName(mp3FileNode,
+							KCatalogConstants.MP3_XML_ARTIST);
+		}	
+		if(this.ATTR_COMMENT.equals(searchAttribute)){
+			res = this.getTextNodeWithName(mp3FileNode,
+							KCatalogConstants.MP3_XML_COMMENT);
+		}	
+		if(this.ATTR_GENRE.equals(searchAttribute)){
+			res = this.getTextNodeWithName(mp3FileNode,
+							KCatalogConstants.MP3_XML_GENRE);
+		}	
+		if(this.ATTR_TITLE.equals(searchAttribute)){
+			res = this.getTextNodeWithName(mp3FileNode,
+							KCatalogConstants.MP3_XML_TITLE);
+		}	
+		if(!list.contains(res.trim()) &&
+					 !KCatalogConstants.MESSAGE_NA.equals(res.trim())
+					 && !"".equals(res.trim())){
+			list.add(res.trim());
+		}
+	}
+	
+	public int getTotalCount(){
+		
+		String fileLoc = searchMp3FileDto.getFileLocation();
+		if(KCatalogConstants.MESSAGE_NA.equals(fileLoc)){
+			fileLoc = "";
+		}
+		fileLoc = (fileLoc == null)?"" : fileLoc.trim();
+		ArrayList locationIdList = new ArrayList();
+	
+		
+		String lastAddedIdStr = KCatalogXMLSchemaLookup.getLastAddedLocationId();
+		int lastAddedId = Integer.valueOf(lastAddedIdStr.trim()).intValue();
+		for(int i =1;i<= lastAddedId;i++){		
+			locationIdList.add(String.valueOf(i));
+		}			
+		
+		int count = 0;									;	
+		for(int i = 0;i<locationIdList.size();i++){		
+						
+			String xmlFilePath = getXmlFilePath((String)locationIdList.get(i));											
+			if(!new File(xmlFilePath).exists()){			
+				return count;
+			}
+				
+			KCatalogXMLSchemaFileSearch fs 
+									= new KCatalogXMLSchemaFileSearch();
+			ArrayList matchingRecords = 
+								fs.searchFile( xmlFilePath,
+												searchMp3FileDto,
+												searchOperationType,
+												exactMatch);		    
+			if(matchingRecords.size() > 0 ){
+				if(!searchLocationIdList.contains((String)locationIdList.get(i))){
+					searchLocationIdList.add((String)locationIdList.get(i));
+					//System.out.println("loc id " + (String)locationIdList.get(i) + " fnam " );
+					count = count + matchingRecords.size() ;
+				}
+			}			
+			
+		}
+		
+		return count;
+	}
+	
+	public  ArrayList searchMp3ForLocation(String mp3Location,
+												boolean isRecursive,
+												String opType,
+												Mp3FileDto searchDto,
+												boolean exactMatch){
+		ArrayList resultList = new ArrayList();
+		searchMp3ForLocation(mp3Location,isRecursive,searchDto,resultList,opType,exactMatch);
+		return resultList;
+	}
+	
+	public  ArrayList searchForMp3File(Mp3FileDto searchDto,
+									String opType,boolean exactMatch){
+		ArrayList resultList = new ArrayList();
+		exactMatch = true;
+		breakIfCommentFound = false;
+		//searchOperationType = KCatalogConstants.SEARCH_OPERATION_TYPE_AND;
+		String loc = searchDto.getFileLocation();
+		//searchDto.setFileLocation("");
+		searchMp3ForLocation(loc,false,searchDto,resultList,opType,exactMatch);
+		return resultList;
+	}
+	
+	public  ArrayList searchForMp3FileRecursive(Mp3FileDto searchDto,
+												String opType,
+												boolean exactMatch){
+		
+		ArrayList resultList = new ArrayList();
+		exactMatch = true;
+		breakIfCommentFound = false;
+		//searchOperationType = KCatalogConstants.SEARCH_OPERATION_TYPE_AND;
+		String loc = searchDto.getFileLocation();
+		//searchDto.setFileLocation("");
+		searchMp3ForLocation(loc,true,searchDto,resultList,opType,exactMatch);
+		
+		return resultList;
+	}
+	
+	public ArrayList searchCommentForPermanentLocation(Mp3FileDto searchDto,
+											String opType,boolean exactMatch){
+		ArrayList resultList = new ArrayList();
+		this.exactMatch = exactMatch;
+		breakIfCommentFound = true;
+		searchOperationType = KCatalogConstants.SEARCH_OPERATION_TYPE_AND;
+		String loc = searchDto.getFileLocation();
+		//searchDto.setFileLocation("");		
+		searchMp3ForLocation(loc,true,searchDto,resultList,opType,exactMatch);
+		return resultList;
+	}
+	
+	private void searchMp3ForLocation(String mp3Location,
+												boolean isRecursive,												
+												Mp3FileDto searchDto,
+												ArrayList resultList,
+												String opType,
+												boolean exactMatch
+												){						
+	//	long t1 = System.currentTimeMillis();
+	//	long tForXml = 0;
+	//	long tlook = 0;
+		if("".equals(mp3Location) && !isRecursive){
+			return;
+		}	
+		Stack locStack = new Stack();
+		ArrayList proccesdLocList = new ArrayList();
+		locStack.push(mp3Location);
+		while(!locStack.empty()){
+			String location = (String)locStack.pop();
+			//System.out.println("Searching for " +location );
+			searchDto.setFileLocation(location);
+			ArrayList childList = null;	
+			if("".equals(location)){
+				childList = 	
+					KCatalogXMLSchemaLookup.getRootFileLocationList();
+			}else{
+		//		long tX1 = System.currentTimeMillis();
+				ArrayList dtoList = getMp3DtoListFromUnsearchedXMLFiles(location,
+								proccesdLocList,
+								searchDto,
+								opType,
+								exactMatch);
+			//	System.out.println("inside serach " + location + " " + dtoList.size());
+		//		tForXml += System.currentTimeMillis() - tX1;					
+			//	dtoList = getMatchingRecordsFromList(dtoList,searchDto);
+				resultList.addAll(dtoList);
+		//		long tLo = System.currentTimeMillis();
+				childList = 	
+					KCatalogXMLSchemaLookup.getFileLocationList(location,
+						 		KCatalogXMLSchemaLookup.SEARCH_OP_TYPE_CHILDREN);
+		//		tlook += (System.currentTimeMillis()-tLo);
+			}
+			//!(breakIfCommentFound && resultList.size() > 0) &&
+			if(isRecursive){
+				for(int i=0;i<childList.size();i++){
+					String childLoc = ((String)childList.get(i)).trim();					
+					locStack.push(childLoc);					
+				}	
+			}						
+			
+		}	
+		//System.out.println("total time for proc = " + this.tPro +
+		//				"totl time for search " + this.tSr);
+		//System.out.println("total time taken " + (System.currentTimeMillis() - t1));
+		//System.out.println("tforXml "  +tForXml);
+		//System.out.println("tlook "  +tlook);
+	}
+	
+	//private static long tPro = 0;
+	//private static long tSr= 0;
+	
+	private ArrayList getMp3DtoListFromUnsearchedXMLFiles(String mp3FileLocation,
+														ArrayList proccesdLocList,
+														Mp3FileDto searchDto,
+														String opType,
+														boolean exactMatch){
+		
+		/*System.out.println("getMp3DtoListFromUnsearchedXMLFiles " +
+			mp3FileLocation + " " + "procloc " + proccesdLocList + " " + opType);*/
+		ArrayList list = 
+					KCatalogXMLSchemaLookup.getLocationFileId(mp3FileLocation.trim());
+	/*	ArrayList toProcList  = new ArrayList();
+		int i=0;
+	//	long t1 = System.currentTimeMillis();
+		while(list.size() > i){
+			
+			if(!proccesdLocList.contains(list.get(i))){							
+				proccesdLocList.add(list.get(i));
+			//	toProcList.add(list.get(i));				
+				//System.out.println(list.get(i));	
+			}
+			toProcList.add(list.get(i));				
+			i++;
+		}		
+	//	long t2 = System.currentTimeMillis();
+//		tPro +=  t2-t1;*/
+		return  getMp3DtoListFromMp3FileLocation(mp3FileLocation.trim(),
+					list,
+					opType	
+					,exactMatch,
+					searchDto);
+	}
+	
+	private ArrayList getMatchingRecordsFromList(ArrayList dtoList,
+														Mp3FileDto searchDto){
+		int currentPos = 0;
+		
+		while(dtoList.size() >= currentPos + 1){
+			Mp3FileDto dto = (Mp3FileDto)dtoList.get(currentPos);			
+			boolean stat = false;
+			if(this.exactMatch && 
+				KCatalogConstants.SEARCH_OPERATION_TYPE_AND.
+							equals(searchOperationType)){
+				stat = checkMatchUsingAnd(dto,searchDto,true);
+			}else{
+				stat = checkMatchUsingOr(dto,searchDto,false);
+			}
+			if(!stat){
+				dtoList.remove(dto);
+			}else{
+				currentPos++;
+			}
+		}
+		
+		
+		return dtoList;
+		
+	}
+	
+	public  ArrayList getMp3DtoListFromLocation(String mp3FileLocation,
+												String comment){
+		ArrayList list = 
+					KCatalogXMLSchemaLookup.getLocationFileId(mp3FileLocation.trim());
+		Mp3FileDto searchDto = KCatalogCommonUtility.getMp3FileDtoFromLoc(mp3FileLocation);
+		searchDto.setComment(comment);
+		return  getMp3DtoListFromMp3FileLocation(mp3FileLocation,list,
+					KCatalogConstants.SEARCH_OPERATION_TYPE_AND,
+					true,
+					searchDto);
+	}
+	
+	private ArrayList getMp3DtoListFromMp3FileLocation(String mp3FileLocation,
+												ArrayList locIdList,
+												String opType,
+												boolean exactMatch,
+												Mp3FileDto searchDto){
+		ArrayList mp3DtoList = new ArrayList();
+	//	long t1 = System.currentTimeMillis();
+		KCatalogXMLSchemaFileSearch fs 
+									= new KCatalogXMLSchemaFileSearch();
+		for(int i=0;i<locIdList.size();i++){
+			String xmlFilePath = getXmlFilePath((String)locIdList.get(i));										
+			
+			/*System.out.println(xmlFilePath + " "+ searchDto.getFileLocation() + " "+
+						opType +  "  " + exactMatch);*/
+			ArrayList matchingRecords = 
+								fs.searchFile( xmlFilePath,
+												searchDto,
+												opType,
+												exactMatch);
+			if(matchingRecords.size() != 0 ){
+				mp3DtoList.addAll(matchingRecords);	
+			}
+						
+		}
+//		long t2 = System.currentTimeMillis();
+//		this.tSr += t2-t1;
+		/*System.out.println("getMp3DtoListFromMp3FileLocation " + mp3DtoList.size());*/
+		return mp3DtoList;		
+	}
+	
+	
+	
+	public static synchronized KCatalogXMLSchemaSearch newInstance(
+								Mp3FileDto mp3FileDto,
+									String opType,
+										boolean isExactMatch,
+										boolean isBrowseMode){
+		
+		/*if(instancePresent){
+			return currRef;
+		}*/
+		if(currRef == null){
+			currRef= new KCatalogXMLSchemaSearch();
+		}
+		currRef.initialize(mp3FileDto,opType,isExactMatch,isBrowseMode,true);
+		return currRef;
+	}
+	
+	public static KCatalogXMLSchemaSearch  newInstanceWithoutCountCheck(
+								Mp3FileDto mp3FileDto,
+									String opType,
+										boolean isExactMatch,
+										boolean isBrowseMode){		
+		if(currRef == null){
+			currRef= new KCatalogXMLSchemaSearch();
+		}
+		currRef.initialize(mp3FileDto,opType,isExactMatch,isBrowseMode,false);	
+		return currRef;
+	}
+	
+	public static KCatalogXMLSchemaSearch newInstance(){		
+		if(instancePresent){
+			close();
+		}
+		if(currRef == null){
+			currRef= new KCatalogXMLSchemaSearch();
+		}
+		instancePresent = true;
+		return currRef;
+	}
+		
+	public ArrayList getSearchResult(int pageNo){
+		if(!isPageNoValid(pageNo)){
+			return null;
+		}
+		return searchSchema(pageNo);
+	}
+	
+	private ArrayList searchSchema(int pageNo){
+		currentPos = pageNo;
+		Object[] range = getCurrentRange(pageNo);
+		int max = ((Integer)range[1]).intValue();
+		int min = ((Integer)range[0]).intValue();
+		return getMatchingMp3DtoList(min,max);
+	}
+	
+	public ArrayList getMatchingMp3DtoListBySearchingAllXMLs(
+										String searchAttribute,String searchValue){
+		/*String locIdStr = KCatalogXMLSchemaLookup.getLastAddedLocationId();
+		int locId = Integer.valueOf(locIdStr).intValue();
+		ArrayList rs = new ArrayList();		
+		
+		for(int i = 1;i<=locId;i++){		
+						
+			String xmlFilePath = getXmlFilePath(String.valueOf(i));											
+			
+			if(new File(xmlFilePath).exists()){			
+											
+				KCatalogXMLSchemaFileSearch fs 
+									= new KCatalogXMLSchemaFileSearch();
+				
+				ArrayList matchingRecords = 
+								fs.searchFile( xmlFilePath,
+												searchMp3FileDto,
+												searchOperationType,
+												exactMatch);					
+				System.out.println("inside xmlFilePath " + 
+								xmlFilePath + " type " + searchOperationType
+								+ " exactMatch " + exactMatch + " res " +
+								matchingRecords.size());	
+				rs.addAll(matchingRecords);		
+			}
+		}
+		return rs;		*/
+		return formThreadGroupAndSearch(searchAttribute,searchValue);
+		
+		
+	}
+	
+	private ArrayList formThreadGroupAndSearch(String searchAttribute,
+													String attributeValue){
+		ArrayList rs = new ArrayList();
+		int noOfThreads = 1;
+		ThreadGroup tg = new ThreadGroup("searchGroup");
+		//String locIdStr = KCatalogXMLSchemaLookup.getLastAddedLocationId();		
+		KCatalogXMLSchemaMp3AttributeLookUpManager lookupManager = 
+					KCatalogXMLSchemaMp3AttributeLookUpManager.getInstance();
+		ArrayList locIdList = lookupManager.getXMLFileLocationIds(searchAttribute,attributeValue);		
+		int len = locIdList.size();				
+		int countPerThread = len/noOfThreads;
+		int remaining =  len - (countPerThread * noOfThreads);
+/*		System.out.println(" searchAttribute " +  searchAttribute + " " +  
+						" attributeValue " + attributeValue 
+						+" len " + len 
+						+ "countPerThread " + countPerThread);*/
+		ArrayList fileSearchObjectList = new ArrayList();
+		int min = 0; int max = 0;		
+		for(int i=0;i<noOfThreads;i++){
+						
+			min = max ;
+			max = min + countPerThread ;
+			if( i == noOfThreads - 1 || 0 == countPerThread){
+				max += remaining;
+			}
+			if( max > len ){
+				break;
+			}
+			FileSearchThreads fs = new FileSearchThreads(min,max,locIdList);
+			fileSearchObjectList.add(fs);
+			Thread t = new Thread(tg,fs);
+			t.start();
+		}
+		while( tg.activeCount() != 0){
+			try{
+				synchronized(this){					
+					this.wait(10);
+				}
+			}catch(Exception e){
+				e.printStackTrace();
+			}
+		}
+		for(int i=0;i<fileSearchObjectList.size();i++){
+			FileSearchThreads fs = (FileSearchThreads)fileSearchObjectList.get(i);			
+			Iterator it = fs.getResult().iterator();
+			while(it.hasNext()){
+				Object mp3FileDto = it.next();
+				if(!rs.contains(mp3FileDto)){
+					rs.add(mp3FileDto);
+				}
+			}			
+		}	
+		return rs;
+	}
+	
+	class FileSearchThreads implements Runnable{
+		int minIndex = 0; 
+		int maxIndex = 0;	
+		ArrayList locIdList = new ArrayList();	
+		ArrayList rs = new ArrayList();
+		
+		FileSearchThreads(int minIndex,int maxIndex,
+								ArrayList locIdList){
+			this.minIndex = minIndex;
+			this.maxIndex = maxIndex;			
+			this.locIdList = locIdList;
+		}
+		
+		public ArrayList getResult(){
+			return rs;
+		}
+		
+		public void run(){
+			searchFiles();
+		}
+		
+		private void searchFiles(){												
+			for(int i = minIndex;i<maxIndex;i++){		
+				String locId = (String)locIdList.get(i);		
+				String xmlFilePath = getXmlFilePath(locId);														
+				if(new File(xmlFilePath).exists()){													
+					
+					KCatalogXMLSchemaFileSearch fs 
+										= new KCatalogXMLSchemaFileSearch();
+					ArrayList matchingRecords = 
+									fs.searchFile( xmlFilePath,
+													searchMp3FileDto,
+													searchOperationType,
+													exactMatch);					
+				/*	System.out.println("inside xmlFilePath " + 
+								xmlFilePath + " type " + searchOperationType
+								+ " exactMatch " + exactMatch + " res " +
+								matchingRecords.size());	*/
+					rs.addAll(matchingRecords);		
+				}
+			}	
+				
+		}
+	}
+	
+	private ArrayList getMatchingMp3DtoList(int min, int max){
+		ArrayList rs = new ArrayList();
+		int range = 1;
+		
+		for(int i = 0;i<searchLocationIdList.size();i++){		
+						
+			String xmlFilePath = getXmlFilePath((String)searchLocationIdList.get(i));											
+			
+			if(!new File(xmlFilePath).exists()){			
+				return rs;
+			}
+				
+			KCatalogXMLSchemaFileSearch fs 
+									= new KCatalogXMLSchemaFileSearch();
+			ArrayList matchingRecords = 
+								fs.searchFile( xmlFilePath,
+												searchMp3FileDto,
+												searchOperationType,
+												exactMatch);		    		
+			int pos = 0;		
+								
+			while( pos < matchingRecords.size() &&
+							range <= max && range <= totalCount){												
+				if(range >= min){
+					rs.add(matchingRecords.get(pos));
+				}
+				pos++;
+				range++;
+			}						
+			if(range > max || range > totalCount){
+				break;
+			}
+		
+		}	
+		return rs;	
+	}
+	
+	public int getMaxPageNo(){
+		//System.out.println("getMaxPageNo " + totalCount + " " +maxResultNo);
+		int pg = totalCount / maxResultNo;
+		if(totalCount % maxResultNo > 0 ){
+			pg ++;
+		}
+		return pg;
+	}
+	
+	public boolean isPageNoValid(int pageNo){
+		Object[] range = getCurrentRange(pageNo);
+		int max = ((Integer)range[1]).intValue();
+		int min = ((Integer)range[0]).intValue();
+		if( (max - totalCount) > maxResultNo){
+			return false;
+		}		
+		if(min < 1 ){
+			return false;
+		}
+		return true;
+	}
+	
+	private Object[] getCurrentRange(int pageNo){
+		int max = maxResultNo * pageNo;
+		int min = max - maxResultNo + 1;
+		return new Object[]{new Integer(min),
+							new Integer(max)
+						};
+	}
+}
+

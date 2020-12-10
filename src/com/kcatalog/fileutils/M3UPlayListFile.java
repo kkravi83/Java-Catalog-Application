@@ -1,0 +1,365 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.fileutils;
+
+import org.apache.xml.utils.XMLChar;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.common.KCatalogCommonUtility;
+import com.kcatalog.common.KCatalogConstants;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.fileutils.Mp3FileDto;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaWriter;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaFileReader;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaFileSearch;
+import java.util.*;
+import java.io.*;
+import java.lang.*;
+
+public class M3UPlayListFile {
+	
+	private String fileName = "";
+	
+	public M3UPlayListFile(String fileName){
+		this.fileName = fileName;	
+	}
+	
+	public boolean fileAlreadyExist(){
+		return new File(getPlayListPath()).exists();
+	}
+		
+	private String getPlayListMetaInfoPath(){
+		String filePath = KCatalogConfigOptions.getOptionValue(
+							KCatalogConstants.CONFIG_PLAYLIST_LOCATION);
+		filePath += KCatalogConfigOptions.getSeparator() + 
+							fileName +"_METAINFO" +".xml";
+		return filePath;
+	}
+	
+	public void createNewList(){
+		writeM3UFile(getEmptyM3UList());
+		KCatalogXMLSchemaWriter writer = 
+						new KCatalogXMLSchemaWriter();
+		File fl = new File(getPlayListMetaInfoPath());
+		if(fl.exists()){
+			deletePlaylist();
+		}
+		writer.writeNewRecordsInPlayListMetaInfo(getPlayListMetaInfoPath(),
+									new ArrayList());
+	}
+	
+	private String getEmptyM3UList(){
+		StringBuffer m3u = new StringBuffer("#EXTM3U").append("\n");
+		return m3u.toString();
+	}
+	
+	public String getPlayListPath(){
+		String filePath = KCatalogConfigOptions.getOptionValue(
+							KCatalogConstants.CONFIG_PLAYLIST_LOCATION);
+		filePath += KCatalogConfigOptions.getSeparator() + 
+									fileName + ".m3u";
+		return filePath;
+	}
+	
+	private void writeM3UFile(String data){
+		String filePath = getPlayListPath();
+		try{			
+			FileWriter fw = new FileWriter(filePath);
+			fw.write(data);
+			fw.flush();
+			fw.close();
+		}catch(Exception e){
+			throw new KCatalogException("Unable to create play list",e);
+		}
+	}	
+	
+	private String readDataFromFile(){
+		char[] buffer;
+		try{
+			File fl = new File(getPlayListPath());
+			int size = (int)fl.length();					
+			buffer = new char[size];
+			FileReader rd = new FileReader(getPlayListPath());		
+			int readNo = rd.read(buffer,0,size);
+			rd.close();
+		}catch(Exception e){
+			throw new KCatalogException("Unable to read play list",e);
+		}
+		return new String(buffer);
+	}
+	
+	public void addMp3ListToPlaylist(ArrayList mp3List){
+		Iterator it = mp3List.iterator();	
+		StringBuffer data = new StringBuffer(readDataFromFile());
+		if(it.hasNext()){
+			data.append("\n");
+		}
+		while(it.hasNext()){
+			Mp3FileDto dto = (Mp3FileDto)it.next();
+			String mp3Info = getMp3Info(dto);
+			data.append(mp3Info + "\n");
+		}
+		writeM3UFile(data.toString());
+		KCatalogXMLSchemaWriter writer = 
+							new KCatalogXMLSchemaWriter();		
+		writer.writeNewRecordsInPlayListMetaInfo(getPlayListMetaInfoPath(),
+													mp3List);
+	}
+	
+	private String getMp3Info(Mp3FileDto dto){
+		StringBuffer line1 = new StringBuffer("#EXTINF:");
+		String duration = KCatalogCommonUtility.getDurationInSeconds(dto.getDuration());
+		String durationInSec = KCatalogCommonUtility.getDurationInSeconds(duration);
+		line1.append(durationInSec + ",");
+		String artist = dto.getArtist();
+		String title = dto.getTitle();
+		if( KCatalogConstants.MESSAGE_NA.equals(artist)){
+			artist = "";	
+		}
+		if( KCatalogConstants.MESSAGE_NA.equals(title)){
+			title = "";	
+		}
+		StringBuffer line = new StringBuffer("");;
+		if( "".equals(artist) && "".equals(title)){
+			line = line.append(dto.getFileName());
+		}else{
+			line.append(artist).append(" - ");
+			line.append(title).append("\n");
+		}
+		
+		line1.append(line);
+		
+		String line2 = dto.getFileLocation() + 
+								KCatalogConfigOptions.getSeparator() +
+										dto.getFileName();
+		line1.append(line2);
+		//System.out.println(line1);
+		return line1.toString();
+	}
+	
+	public void deleteMp3InfoFromPlayList(ArrayList mp3List){
+		deleteFromPlaylist(mp3List);	
+		deleteFromMetaInfoFile(mp3List);
+	}
+	
+	public void mapLocations(HashMap locationMap){
+		Iterator keyIterator = locationMap.keySet().iterator();
+		ArrayList toDeleteList = new ArrayList();
+		ArrayList newDtoList = new ArrayList();
+		//System.out.println("mapLocations " );
+		
+		ArrayList mp3DtoList = getMp3DtoListInPlayList();
+		Iterator mp3DtoIterator = mp3DtoList.iterator();
+		while(mp3DtoIterator.hasNext()){
+			Mp3FileDto dto = (Mp3FileDto)mp3DtoIterator.next();
+			String newLoc =
+			  KCatalogCommonUtility.getNewLocFromLocMap(locationMap,
+			  	dto.getFileLocation().trim());
+			//System.out.println("mapLocations newLoc " +  newLoc);
+			if(null != newLoc){
+				toDeleteList.add(dto);
+				Mp3FileDto newDto = dto.cloneMp3File();
+				newDto.setFileLocation(newLoc);
+				newDtoList.add(newDto);
+			}
+		}					
+		
+		deleteMp3InfoFromPlayList(toDeleteList);
+		addMp3ListToPlaylist(newDtoList);
+	}
+	
+	
+	private void deleteFromMetaInfoFile(ArrayList mp3List){
+		KCatalogXMLSchemaFileReader freader = 
+				new KCatalogXMLSchemaFileReader(getPlayListMetaInfoPath());
+		ArrayList mp3DtoListFromExistingFile  = 
+									freader.readMp3DtoListFromXML();
+		ArrayList filteredList = excludeMp3DtosForDelete(mp3DtoListFromExistingFile,mp3List);
+		File fl = new File(getPlayListMetaInfoPath());
+		if(fl.exists()){
+			fl.delete();
+		}
+		KCatalogXMLSchemaWriter writer = 
+							new KCatalogXMLSchemaWriter();		
+		writer.writeNewRecordsInPlayListMetaInfo(getPlayListMetaInfoPath(),
+								filteredList);
+	}
+	
+	private ArrayList excludeMp3DtosForDelete(ArrayList mp3DtoListFromExistingFile,
+										ArrayList mp3List){
+		ArrayList filteredList = new ArrayList();
+		ArrayList deleteMp3PathList = getMp3PathList(mp3List);			
+		Iterator it = mp3DtoListFromExistingFile.iterator();
+		while(it.hasNext()){
+			Mp3FileDto dto = (Mp3FileDto)it.next();
+			if( !isMp3DtoToDelete(deleteMp3PathList,dto)){
+				filteredList.add(dto);
+			}
+		}
+		return filteredList;
+	}
+		
+	private boolean isMp3DtoToDelete(ArrayList pathList,Mp3FileDto dto){
+		boolean res = false;
+		String location = dto.getFileLocation() + 
+							KCatalogConfigOptions.getSeparator() +
+								dto.getFileName();
+		if(pathList.contains(location.trim())){
+			res = true;
+		}
+		return res;
+	}
+	
+	public ArrayList getMp3DtoListInPlayList(){
+		KCatalogXMLSchemaFileReader freader = 
+				new KCatalogXMLSchemaFileReader(getPlayListMetaInfoPath());
+		ArrayList mp3DtoListFromExistingFile  = 
+									freader.readMp3DtoListFromXML();	
+		return mp3DtoListFromExistingFile;
+	}
+	
+	private void deleteFromPlaylist(ArrayList mp3List){
+		try{
+			ArrayList mp3PathList = getMp3PathList(mp3List);	
+			LineNumberReader reader = 
+							new LineNumberReader(new FileReader(this.getPlayListPath()));
+			String line1 = "";
+			String currentLine = reader.readLine();
+			StringBuffer result = new StringBuffer("");
+			boolean writeLine1 = false;
+			while(null != currentLine){			
+				currentLine = currentLine.trim();
+			///	System.out.println("1 " + currentLine);
+				if(!"".equals(currentLine)){
+					if( currentLine.startsWith("#EXTINF")){
+					//	System.out.println("inside extinf " );
+						writeLine1 = true;
+						line1 = currentLine; 
+					}else{
+						if(currentLine.startsWith("#EXTM3U")){
+						//	System.out.println("inside m3u " );
+							result.append(currentLine).append("\n");	
+						}else{
+							if( !mp3PathList.contains(currentLine)){
+								if(writeLine1){
+									writeLine1 = false;
+									result.append(line1).append("\n");
+								//	System.out.println("inside else1" );
+								}
+								result.append(currentLine).append("\n");
+							//	System.out.println("inside else2" );
+							}
+						}
+					}				
+				}	
+				currentLine = reader.readLine();			
+			}
+			reader.close();
+			writeM3UFile(result.toString());		
+		}catch(Exception e){
+			throw new KCatalogException("Unable to read play list",e);
+		}
+	}
+	
+	private ArrayList getMp3PathList(ArrayList mp3DtoList){
+		ArrayList list = new ArrayList();
+		Iterator it = mp3DtoList.iterator();	
+		while(it.hasNext()){
+			Mp3FileDto dto = (Mp3FileDto)it.next();
+			String filePath = dto.getFileLocation() +
+					KCatalogConfigOptions.getSeparator() +
+								dto.getFileName();
+			list.add(filePath.trim());
+		}
+		return list;
+	}
+	
+	public void deletePlaylist(){
+		File pl = new File(getPlayListPath());
+		File meta = new File(getPlayListMetaInfoPath());
+		if(pl.exists()){
+			pl.delete();
+		}
+		if(meta.exists()){
+			meta.delete();
+		}
+		
+	}
+	
+	public boolean isValid(){
+		File pl = new File(getPlayListPath());
+		File meta = new File(getPlayListMetaInfoPath());
+		return pl.exists() && meta.exists();
+	}
+	
+	public boolean containsMp3(Mp3FileDto dto){
+		KCatalogXMLSchemaFileSearch fs = 
+						new KCatalogXMLSchemaFileSearch();
+		ArrayList result = fs.searchFile(getPlayListMetaInfoPath(),
+									dto,
+										KCatalogConstants.SEARCH_OPERATION_TYPE_AND,
+											true);
+		return ( 0 == result.size())? false:true;
+	}
+	
+	public String getPlayListInfo(){
+		StringBuffer playListInfo = new StringBuffer("");								
+		
+		try{
+			File f = new File(getPlayListPath());
+			playListInfo.append("Playlist Name: ")
+					.append(fileName).append("\n")
+					.append("No: of Mp3s in list: ")
+					.append(getMp3DtoListInPlayList().size()).append("\n")
+					.append("Last Modified: ")
+					.append(
+							KCatalogCommonUtility.getDateStringFromLong(
+									f.lastModified()))
+					.append("\n")
+					.append("Size: ")
+					.append(String.valueOf(f.length())).append(" bytes\n");
+		}catch(Exception e){
+			playListInfo = new StringBuffer("");
+		}		
+		return playListInfo.toString();
+	}
+	
+	public ArrayList searchForSimilarMp3InPlaylist(Mp3FileDto searchDto){
+		KCatalogXMLSchemaFileSearch fs = 
+						new KCatalogXMLSchemaFileSearch();
+		ArrayList result = fs.searchFile(getPlayListMetaInfoPath(),
+									searchDto,
+										KCatalogConstants.SEARCH_OPERATION_TYPE_OR,
+											false);
+									
+		return result;
+	}
+	
+	public ArrayList searchForMp3InPlaylist(Mp3FileDto searchDto){
+		KCatalogXMLSchemaFileSearch fs = 
+						new KCatalogXMLSchemaFileSearch();
+		ArrayList result = fs.searchFile(getPlayListMetaInfoPath(),
+									searchDto,
+										KCatalogConstants.SEARCH_OPERATION_TYPE_AND,
+											true);
+									
+		return result;
+	}
+}
+

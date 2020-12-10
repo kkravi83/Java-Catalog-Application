@@ -1,0 +1,166 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.xmlschema;
+
+import com.kcatalog.xmlschema.KCatalogXMLSchemaBase;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import org.w3c.dom.Document;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.NamedNodeMap;
+import java.io.File;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.fileutils.Mp3FileDto;
+import com.kcatalog.xmlschema.KCatalogSchemaMp3FileDto;
+import java.util.ArrayList;
+
+
+public class KCatalogXMLSchemaFileReader extends
+ 								KCatalogXMLSchemaBase {
+ 									
+ 	private String fileName = "";
+ 	private Document doc = null;
+ 	
+ 	
+	public KCatalogXMLSchemaFileReader(String fileName) {
+		this.fileName = fileName;	
+	}	
+	
+	public ArrayList readMp3DtoListFromXML(){
+		Document doc = this.getDocumentFromFactory(fileName);
+		this.doc = doc;
+		return readMp3DtoListFromXML(1,99999);
+	}
+	
+	ArrayList readMp3DtoListFromXML(int startRange,int endRange){
+		try{
+			Element root = doc.getDocumentElement();
+			String rootName = root.getNodeName();
+			rootName = rootName.replace('\n',' ').trim();
+			if(!KCatalogConstants.MP3_XML_ROOT.equals(rootName)){
+				throw new KCatalogException(KCatalogConstants.ERROR_READING_DATABASE);
+			}
+			ArrayList resultList = traverseTree(root,startRange,endRange);
+					
+			return resultList;	
+		}catch(Exception e){
+			   throw new KCatalogException(KCatalogConstants.ERROR_READING_DATABASE);
+		}
+		
+	}
+	
+	private ArrayList traverseTree(Element root,int startRange,int endRange){
+				
+		ArrayList mp3DtoList = new ArrayList();
+		int range = 1;
+		NodeList list = root.getChildNodes();
+		int i = 0 ;
+		while(i < list.getLength() ){
+			Node currNode = list.item(i);			
+			String fileLocation = getFileLocation(currNode);			
+			if( fileLocation != null && !"".equals(fileLocation) ){
+				NodeList mp3Files = currNode.getChildNodes();
+				int j = 0;
+				while(j < mp3Files.getLength()){
+					Node mp3File = mp3Files.item(j);
+					KCatalogSchemaMp3FileDto mp3FileDto = 
+					  	 getMp3FileDto(fileLocation,mp3File);
+					if(mp3FileDto != null && range >= startRange 
+								&& range <= endRange){
+						mp3FileDto.setDoc(doc);
+						mp3FileDto.setMp3FileNode(mp3File);
+						mp3FileDto.setParentLocationNode(currNode);
+						mp3FileDto.setXmlFileName(fileName);
+						mp3DtoList.add(mp3FileDto);
+					//	System.out.println("file name " + mp3FileDto.getFileName()
+					//				+ " comet " + mp3FileDto.getComment());
+						range++;
+					}
+					j++;	
+				}
+				
+			}
+			i++;
+		}
+		return mp3DtoList;
+	}
+	
+	KCatalogSchemaMp3FileDto getMp3FileDto(String fileLocation,Node mp3File){
+		String nodeName = mp3File.getNodeName().replace('\n',' ').trim();
+		if(!KCatalogConstants.MP3_XML_MP3FILE.equals(nodeName)){
+			return null;
+		}
+		KCatalogSchemaMp3FileDto mp3FileDto = 
+								new KCatalogSchemaMp3FileDto();
+		mp3FileDto.setFileLocation(fileLocation);
+		
+		//System.out.println(fileLocation);
+		mp3FileDto.setFileName(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_FILENAME));
+	    mp3FileDto.setComment(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_COMMENT));
+		mp3FileDto.setTitle(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_TITLE));	
+		mp3FileDto.setAlbum(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_ALBUM ));			
+		mp3FileDto.setDuration(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_DURATION));
+		mp3FileDto.setGenre(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_GENRE ));			
+		mp3FileDto.setArtist(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_ARTIST ));			
+		mp3FileDto.setYear(
+			this.getTextNodeWithName(mp3File,KCatalogConstants.MP3_XML_YEAR  ));			
+			
+		//Reading file
+	/*	System.out.println("Reading file");
+		System.out.println(mp3FileDto.getFileName());
+		System.out.println(mp3FileDto.getComment());
+		System.out.println(mp3FileDto.getTitle());
+		System.out.println(mp3FileDto.getAlbum());
+		System.out.println(	mp3FileDto.getGenre());
+		System.out.println(mp3FileDto.getArtist());
+		System.out.println(mp3FileDto.getYear());	*/
+		//
+		return mp3FileDto;
+	}
+	
+	String getFileLocation(Node node){
+		int i =0 ;		
+		i++;			
+		String nodeName = node.getNodeName();	
+		nodeName = nodeName.replace('\n',' ').trim();
+		if(KCatalogConstants.MP3_XML_FILELOCATION.equals(nodeName)){
+			NamedNodeMap nodeMap = node.getAttributes();
+			Node value = nodeMap.getNamedItem("value");
+			String fileLocation = value.getNodeValue();
+			fileLocation =  fileLocation.replace('\n',' ').trim();
+			return fileLocation;
+		}		
+		return "";
+	}
+	
+		
+}
+

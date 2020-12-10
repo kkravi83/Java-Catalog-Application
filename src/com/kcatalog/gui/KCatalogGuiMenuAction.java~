@@ -1,0 +1,430 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.gui;
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+import javax.swing.table.*;
+import javax.swing.plaf.basic.*;
+import javax.swing.border.TitledBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.filechooser.*;
+import java.io.FilenameFilter;
+
+import com.kcatalog.gui.KCatalogGuiSettingsDlg;
+import com.kcatalog.gui.KCatalogGuiSearchValueTableModel;
+import com.kcatalog.gui.KCatalogGuiMp3TableRenderer;
+import com.kcatalog.gui.KCatalogGuiSearchTab;
+import com.kcatalog.gui.KCatalogGuiDataBaseTab;
+import com.kcatalog.common.KCatalogStatusManager;
+import com.kcatalog.common.KCatalogController;
+import com.kcatalog.gui.KCatalogGuiNotesDlg;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaLocationMapping;
+import com.kcatalog.gui.KCatalogProgressIndicatorDlg;
+import com.kcatalog.common.KCatalogConstants;
+import com.kcatalog.common.KCatalogCommonUtility;
+import com.kcatalog.applogic.KCatalogUpdateMp3InfoDto;
+import com.kcatalog.fileutils.M3UPlayListManager;
+import com.kcatalog.common.KCatalogDBBkupManager;
+import java.awt.event.ActionListener;
+import java.util.EventListener;
+import java.util.*;
+import java.io.File;
+import java.awt.event.ActionEvent;
+import com.kcatalog.fileutils.FileManager;
+import com.kcatalog.common.KCatalogLookAndFeelManager;
+
+public class KCatalogGuiMenuAction {
+			
+	KCatalogGui mainFrame = null;		
+	ActionEvent event = null;			
+	
+	KCatalogGuiMenuAction(KCatalogGui mainFrame,
+										ActionEvent event){				
+		this.event = event;		
+		this.mainFrame = mainFrame;
+	}
+	
+	
+	public void processLNFAction(){		
+		String menuName = ((JMenuItem)(event.getSource())).getName();				
+	//	System.out.println("lnfactio " + menuName);
+		mainFrame.setCursor(new Cursor(Cursor.WAIT_CURSOR));
+		KCatalogLookAndFeelManager km  = new KCatalogLookAndFeelManager();		
+		km.setDefaultLNF(menuName);	
+		mainFrame.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+		JOptionPane.showMessageDialog(mainFrame,
+								"Please restart the application",
+									"KCatalog",
+									JOptionPane.INFORMATION_MESSAGE);			
+	}
+	
+	public void processAction(){				
+		String menuName = ((JMenuItem)(event.getSource())).getName();
+	//	System.out.println(menuName);
+		boolean viewMenu = true;
+		if("menuDocumentation".equals(menuName)){
+			viewMenu = false;
+			showHelp();
+		}
+		
+		if("menuExit".equals(menuName)){
+			viewMenu = false;
+			exitApp();
+		}
+		if("menuSaveMapping".equals(menuName)){
+			viewMenu = false;
+			saveMapping();
+		}	
+		if("menuAbout".equals(menuName)){
+			viewMenu = false;
+			showAboutDialogue();
+		}
+		if("menuSettings".equals(menuName)){
+			viewMenu = false;
+			showSettings();
+		}
+		if("menuAddFolderToDB".equals(menuName)){
+			viewMenu = false;
+			addFolderToDB();
+		}
+		if("menuCreatePlaylist".equals(menuName)){
+			viewMenu = false;
+			createNewPlayList();
+		}
+		if("menuToolsDBBkup".equals(menuName)){
+			viewMenu = false;
+			backupDB();
+		}
+		if("menuToolsRecoverFromBackup".equals(menuName)){
+			viewMenu = false;
+			recoverDataFromBackup();
+		}
+		if("menuToolsSettings".equals(menuName)){
+			viewMenu = false;
+			showSettingsDlg();
+		}
+		if("menuToolsNotes".equals(menuName)){
+			viewMenu = false;
+			showNotesDlg();
+		}
+		//else assume that its view menu
+		if(true == viewMenu){
+			selectedViewMenu(menuName);
+		}
+	}
+	
+	private void showNotesDlg(){
+		KCatalogGuiNotesDlg dlg = new KCatalogGuiNotesDlg(notesDlgRef);
+		dlg.setVisible(true);
+	}
+	
+	private void showSettingsDlg(){
+		KCatalogGuiDataBaseTab settingsDlg =
+						new KCatalogGuiDataBaseTab(mainFrame);
+		settingsDlg.setVisible(true);	
+	}
+	
+	private void showHelp(){
+		String path = KCatalogConfigOptions.getOptionValue(
+				KCatalogConstants.CONFIG_INSTALLATIONFOLDER) +
+				KCatalogConfigOptions.getSeparator() + "help.html";
+		KCatalogCommonUtility.executeProgram(
+			KCatalogConfigOptions.getOptionValue(
+				KCatalogConstants.CONFIG_ASSOCIATED_FILE_MANAGER),
+				new String[]{path});
+	}
+	
+	private void recoverDataFromBackup(){		
+		if(!mainFrame.menuToolsRecoverFromBackup.getState()){
+			removeBkupSelection();			
+		}else{
+			String bkupFile = getBkupFileFromUser();
+			if(null != 	bkupFile){				
+				int stat = JOptionPane.showConfirmDialog(mainFrame,
+						"Existing database will be overwritten with data from " 
+						+ bkupFile 
+						+" during next startup,\nYou can cancel this by deselecting this menu later."
+						+ "\nContinue?",
+						"KCatalog..",
+						JOptionPane.YES_NO_OPTION,
+						JOptionPane.QUESTION_MESSAGE);
+				if( JOptionPane.NO_OPTION == stat){
+					mainFrame.menuToolsRecoverFromBackup.setState(false);
+					mainFrame.menuToolsRecoverFromBackup.setSelected(false);
+					return;
+				}		
+				KCatalogDBBkupManager dbm = new KCatalogDBBkupManager();		
+				dbm.markForRecoverOnStartup(bkupFile.trim());					
+				JOptionPane.showMessageDialog(mainFrame,
+						"Database will be changed during next startup",
+						"KCatalog..",
+						JOptionPane.INFORMATION_MESSAGE);
+			}else{
+				mainFrame.menuToolsRecoverFromBackup.setState(false);
+				mainFrame.menuToolsRecoverFromBackup.setSelected(false);
+			}	
+		}		
+	}
+	
+	private void removeBkupSelection(){
+		KCatalogDBBkupManager dbm = new KCatalogDBBkupManager();		
+		dbm.removeMarkForRecoverOnStartup();
+		JOptionPane.showMessageDialog(mainFrame,
+						"Recovery from backup cancelled",
+						"KCatalog..",
+						JOptionPane.INFORMATION_MESSAGE);
+		//mainFrame.menuToolsRecoverFromBackup.setState(false);
+		
+	}
+	
+	private String getBkupFileFromUser(){
+		KCatalogDBBkupManager dbm = new KCatalogDBBkupManager();		
+		HashMap map = dbm.getDBBkupFilesMap();
+		String ret = null;
+		if(!map.isEmpty()){
+			Object[] params = getBkupFileListFromMap(map);
+			Object stat = JOptionPane.showInputDialog(mainFrame,
+						"Select the Backup file you want",
+								"KCatalog..",								
+									JOptionPane.QUESTION_MESSAGE,
+									null,
+									params,
+									params[0]	);					
+			ret = ( null == stat )? null: (String)stat;
+		}	
+			
+		return ret;
+	}
+	
+	private Object[] getBkupFileListFromMap(HashMap map){		
+		Object[] data = new Object[map.size()];
+		Iterator it = map.keySet().iterator();
+		int i = 0;
+		while(it.hasNext()){
+			data[i] = it.next();
+			i++; 
+		}
+		return data;
+	}
+	
+	private void backupDB(){
+		KCatalogProgressIndicatorDlg dlg =
+				new KCatalogProgressIndicatorDlg(mainFrame,"KCatalog","Please wait.......");
+		dlg.startProgress();
+		dlg.startDialog();
+		KCatalogDBBkupManager dbm = new KCatalogDBBkupManager();		
+		dbm.backUpCurrentDB();		
+		dlg.stopProgress();
+		JOptionPane.showMessageDialog(mainFrame,
+						"Backup done succesfully",
+								"KCatalog..",									
+									JOptionPane.INFORMATION_MESSAGE);
+	}
+	
+	private void createNewPlayList(){
+		String playlistName = getInputFromUser("Please enter a name for the playlist \n (No need to add extension)");
+		if("".equals(playlistName)){
+			return;
+		}
+		M3UPlayListManager playListManage = M3UPlayListManager.getInstance();
+		if(playListManage.fileAlreadyExist(playlistName)){
+			int stat = JOptionPane.showConfirmDialog(mainFrame,
+						"Playlist already exist, Overwrite it?",
+								"KCatalog..",
+									JOptionPane.YES_NO_OPTION,
+									JOptionPane.QUESTION_MESSAGE);
+			if( JOptionPane.NO_OPTION == stat){
+				return;
+			}		
+		}
+		playListManage.createNewPlayList(playlistName);
+		mainFrame.browseTab.addPlayListsToMenu();
+		JOptionPane.showMessageDialog(mainFrame,
+						"Playlist created succesfully  ",
+								"KCatalog..",
+									JOptionPane.INFORMATION_MESSAGE);
+	
+	}
+	
+	private void selectedViewMenu(String menuName){
+		KCatalogGuiBrowseTab browseTabRef = mainFrame.browseTab;		
+		mainFrame.setCursor(new Cursor(Cursor.WAIT_CURSOR));
+		browseTabRef.enableTreeMp3Tree(getMenuIdFromName(menuName));		
+		mainFrame.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+	}
+	
+	private String getMenuIdFromName(String menuName){
+		KCatalogGuiBrowseTab browseTabRef = mainFrame.browseTab;
+		String res = "";
+		if("menuViewLocation".equals(menuName)){
+			res = browseTabRef.BROWSE_LOCATION;
+		}
+		if("menuViewArtist".equals(menuName)){
+			res = browseTabRef.BROWSE_ARTIST;
+		}
+		if("menuViewAlbum".equals(menuName)){
+			res = browseTabRef.BROWSE_ALBUM;
+		}
+		if("menuViewGenre".equals(menuName)){
+			res = browseTabRef.BROWSE_GENRE;
+		}
+		if("menuViewTitle".equals(menuName)){
+			res = browseTabRef.BROWSE_TITLE;
+		}
+		if("menuViewComment".equals(menuName)){
+			res = browseTabRef.BROWSE_COMMENT;
+		}
+		if("menuViewPlaylist".equals(menuName)){
+			res = browseTabRef.BROWSE_PLAYLIST;
+		}
+		return res;
+	}
+	
+	private void saveMapping(){
+		KCatalogXMLSchemaLocationMapping mapping = 
+						 KCatalogXMLSchemaLocationMapping.getInstance();
+		KCatalogProgressIndicatorDlg dlg = new KCatalogProgressIndicatorDlg(mainFrame,
+			"KCatalog","Please wait",300,150,null,false);
+		if(mapping.isEmpty()){
+			return;	
+		}
+		
+		mapping.commitInNewThread();		
+		dlg.startProgress();
+		dlg.startDialog();
+		while(mapping.getCommitComplete()){
+			String[] message = mapping.getStatusMessage();
+			//System.out.println(message[0] + "\n" + message[1]);
+			dlg.setString(message[0],message[1]);	
+		}
+		dlg.stopProgress();	
+		JOptionPane.showMessageDialog(mainFrame,"Database saved successfully","KCatalog",JOptionPane.INFORMATION_MESSAGE);
+		mainFrame.menuSaveMapping.setEnabled(false);
+		
+	}
+	
+	private void addFolderToDB(){
+		JFileChooser fc = new JFileChooser();
+		fc.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+		fc.setMultiSelectionEnabled(true);
+		fc.setFileFilter(addFolderFilter);		
+		int openStat = fc.showOpenDialog(mainFrame);
+		if(openStat == JFileChooser.CANCEL_OPTION){
+			return;
+		}
+		String comment = getInputFromUser("Please enter comment to identify files");
+		if("".equals(comment)){
+			return;
+		}			
+	/*	String selectedDirPath = 
+				fc.getSelectedFile().getAbsolutePath().trim();*/
+		ArrayList selectedFileLocList = getSelectedFilePathsFromDlg(fc);
+		KCatalogUpdateMp3InfoDto updateDto = 
+					new KCatalogUpdateMp3InfoDto();		
+		updateDto.setComment(comment);
+		//updateDto.setDirectoryPath(selectedDirPath);
+		updateDto.setSelectedFileLocList(selectedFileLocList);
+		boolean isRecursive = getRecursiveStatusFromUser();
+		updateDto.setIsRecursive(isRecursive);
+		KCatalogController kc = new KCatalogController();
+//		System.out.println("setting rec " + isRecursive);
+		kc.setParameters(updateDto,mainFrame,null);
+		Thread update = new Thread(kc);
+		update.start();
+	}
+	
+	private ArrayList getSelectedFilePathsFromDlg(JFileChooser fc){
+		File[] f = fc.getSelectedFiles();
+		ArrayList list = new ArrayList();
+		for(int i=0;i<f.length;i++){
+			list.add(f[i].getAbsolutePath());
+		}
+		return list;
+	}
+	
+	private boolean getRecursiveStatusFromUser(){
+		int recStat = JOptionPane.showConfirmDialog(mainFrame,
+						"Add subfolders also?",
+				    	  "KCatalog..",
+							JOptionPane.YES_NO_OPTION);
+		boolean isRecursive = ( JOptionPane.YES_OPTION
+								== recStat )? true:false;
+		return isRecursive;
+	}
+	
+	private String getInputFromUser(String message){
+		String comment = "";
+		comment = JOptionPane.showInputDialog(mainFrame,
+								 message,
+								 "KCatalog...",
+								 JOptionPane.QUESTION_MESSAGE);
+		if(null == comment){
+			return "";
+		}		
+		while("".equals(comment.trim())){
+			comment = JOptionPane.showInputDialog(mainFrame,
+								message,
+								 "KCatalog...",
+								 JOptionPane.QUESTION_MESSAGE);			
+			if(null == comment){
+				return "";
+			}
+		}
+		return comment;
+	}
+	
+	private void showSettings(){
+		KCatalogGuiSettingsDlg settings = 
+					KCatalogGuiSettingsDlg.getInstance(mainFrame);										
+		settings.show();
+	}
+	
+	private void showAboutDialogue(){
+		String message = KCatalogConstants.LICENCE_MESSAGE;
+		JOptionPane.showMessageDialog(mainFrame,message,"KCatalouge",JOptionPane.PLAIN_MESSAGE);
+	}
+	
+	private void exitApp(){
+		if(mainFrame.confirmExit()){
+			mainFrame.dispose();
+			System.exit(0);
+		}
+	}
+	
+	FileFilter addFolderFilter = 
+			new FileFilter(){
+				public boolean accept(File f){
+					FilenameFilter filter = FileManager.getFilenameFilter();
+					File dir = f.getParentFile();
+					String name = f.getName();
+					return filter.accept(dir,name);
+					
+				}				
+				public String getDescription(){
+					return " MP3 Files (*.mp3)";	
+				}
+		
+			};
+	
+}
+

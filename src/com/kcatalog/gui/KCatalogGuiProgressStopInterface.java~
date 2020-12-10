@@ -1,0 +1,7 @@
+package com.kcatalog.gui;
+
+
+public interface KCatalogGuiProgressStopInterface {
+	public void onClickStopButton();
+	
+}

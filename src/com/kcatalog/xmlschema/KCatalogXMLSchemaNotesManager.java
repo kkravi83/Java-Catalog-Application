@@ -1,0 +1,214 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.xmlschema;
+
+import com.kcatalog.xmlschema.KCatalogXMLSchemaBase;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import org.w3c.dom.Document;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Element;
+import org.w3c.dom.Attr;
+import org.w3c.dom.Node;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Text;
+import org.w3c.dom.CDATASection;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.NamedNodeMap;
+import javax.xml.transform.Transformer;
+import com.kcatalog.common.KCatalogCommonUtility;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.dom.DOMSource;
+import java.io.File;
+import java.io.FileOutputStream;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.fileutils.Mp3FileDto;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.StringTokenizer;
+
+
+public class KCatalogXMLSchemaNotesManager extends
+				KCatalogXMLSchemaBase{
+	private final String NOTES_FILENAME = "notesLookup.xml";
+	private final String NOTES_LABEL_NODE = "label";
+	private final String TEXT_NODE_NAME = "textNode";
+	
+	private String getNotesFilePath(){
+		String databaseDir = KCatalogConfigOptions.getOptionValue(
+		                           KCatalogConstants.CONFIG_DATABASE_LOCATION);
+		return databaseDir + KCatalogConfigOptions.getSeparator() +
+					NOTES_FILENAME;
+	}	
+	
+	public String getNotesForLabel(String label){		
+		String resNotes = "";				
+		if( !exists() || null == label || "".equals(label.trim())){
+			return resNotes;
+		}
+		Document doc = this.getDocumentFromFactory(getNotesFilePath());
+		try{			
+			Element header = doc.getDocumentElement();
+			NodeList childNodes = header.getChildNodes();
+			for(int i = 0;i < childNodes.getLength();i++){
+				Node node = childNodes.item(i);
+				String nodeName = node.getNodeName();
+				nodeName = ( nodeName == null)?"":nodeName.trim();
+				if( NOTES_LABEL_NODE.equals(nodeName)){		
+						
+					NamedNodeMap attrMap = node.getAttributes();
+										
+					String attributeValueFromDB = 
+					   attrMap.getNamedItem("value").getNodeValue();
+					
+					if(attributeValueFromDB.trim().equals(
+					                   label.trim())){
+						
+						resNotes = getTextNodeWithName(
+						               node);
+						break;
+					}
+				}
+			}			
+			
+		}catch(Exception e){
+			throw new KCatalogException(
+				      "Cannot access notes file",e);
+		}	
+		return resNotes;
+	}
+	
+	protected String getTextNodeWithName(Node parentNode){
+	
+		NodeList textNodes = parentNode.getChildNodes();
+		String resultText = "";
+		int j =0;
+		while(j < textNodes.getLength()){					
+			CDATASection textNode = 
+				(CDATASection)textNodes.item(j);
+			j++;				
+			if(textNode != null){
+				String tempStr = textNode.getData();
+			
+				tempStr = ( tempStr == null ) ?"" : tempStr.replace('\n',' ').trim();	
+				resultText = resultText + tempStr;
+			}							
+		}
+		return resultText;
+	}
+		
+	public boolean deleteNotes(String label){		
+		boolean res = false;
+		Document doc = this.getDocumentFromFactory(getNotesFilePath());
+		if( !exists()){
+			throw new KCatalogException("Notes file does not exist");
+		}
+		try{			
+			Element header = doc.getDocumentElement();
+			NodeList childNodes = header.getChildNodes();
+			for(int i = 0;i < childNodes.getLength();i++){
+				Node node = childNodes.item(i);
+				String nodeName = node.getNodeName();
+				nodeName = ( nodeName == null)?"":nodeName.trim();
+				if( NOTES_LABEL_NODE.equals(nodeName)){
+					NamedNodeMap attrMap = node.getAttributes();
+					String attributeValueFromDB = 
+					   attrMap.getNamedItem("value").getNodeValue();
+					if(attributeValueFromDB.trim().equals(
+					                   label.trim())){
+						header.removeChild(node);
+					        writeDocToFile(doc,getNotesFilePath());
+					   	res = true;
+					}
+				}
+			}			
+			
+		}catch(Exception e){
+			throw new KCatalogException(
+				      "Cannot access notes file",e);
+		}	
+		return res;
+	}
+	
+	public void addNotes(String label,String notes){
+		if("".equals(notes.trim())){
+			deleteNotes(label);
+		}else{
+			if(!exists()){
+				createNotesFile();
+			}
+			deleteNotes(label);
+			Document doc = this.getDocumentFromFactory(getNotesFilePath());
+		
+			Element labelNode = createElementWithAttribute(doc,
+		                                               NOTES_LABEL_NODE,
+		        					"value",
+								label.trim());
+			doc.getDocumentElement().appendChild(labelNode);
+			createTextNodeForParent(doc,labelNode,TEXT_NODE_NAME,notes);
+			writeDocToFile(doc,getNotesFilePath());		
+		}
+	}
+	
+	private boolean exists(){
+		return new File(getNotesFilePath()).exists();
+	}		
+	
+	private void createNotesFile(){	
+		try{
+			if(exists()){
+			   throw new KCatalogException("Cannot create notes file");
+			}
+			Document doc = this.getNewDocumentFromFactory();	
+			Element header = createHeader(doc);			
+			doc.appendChild(header);
+			writeDocToFile(doc,getNotesFilePath());		
+		}catch(Exception e){
+			throw new KCatalogException(
+				"Error creating notes file "  ,e);
+		}
+	}
+	
+	private  Element createHeader(Document doc){
+		Element header = doc.createElement(KCatalogConstants.CONFIG_ROOT);
+		return header;
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,322 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.common;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import com.kcatalog.common.KCatalogException;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.FileOutputStream;
+import java.io.BufferedOutputStream;
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.BufferedReader;
+import java.io.FilenameFilter;
+import java.text.SimpleDateFormat;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.common.KCatalogCommonUtility;
+import com.kcatalog.fileutils.Mp3FileDto;
+import java.util.Date;
+import java.util.zip.*;
+import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class KCatalogDBBkupManager {
+	private String dbBkupLocation = 
+				KCatalogConfigOptions.getOptionValue(
+						KCatalogConstants.CONFIG_DBBKUP_LOCATION);
+	private String dbBkupFilePrefix = "KCatalog_Bkup_";
+	private String ARCHIVE_COMMENT_PLAYLIST = "playlist";
+	private String ARCHIVE_COMMENT_DATABASE = "database";
+	private String ARCHIVE_COMMENT_CONFIG = "config";
+
+	public KCatalogDBBkupManager() {			
+	}	
+	
+	private String getNewDBBkupFileName(){
+		long time = System.currentTimeMillis();		
+		String fileName = dbBkupFilePrefix;
+		fileName += "_" + time + ".zip";
+		return fileName;
+		
+	}
+	
+	class DBBkupFileFilter implements FilenameFilter {
+		public boolean accept(File dir, String name) {
+			boolean fl = false;
+			if((name.trim().endsWith(".zip") ||
+					name.trim().endsWith(".ZIP") &&
+					name.trim().startsWith(dbBkupFilePrefix))  ){
+				fl = true;
+			}
+			return fl;
+		}	
+	}
+	
+	public HashMap getDBBkupFilesMap(){
+		HashMap map = new HashMap();
+		File file = new File(dbBkupLocation);
+		File[] children = file.listFiles(new DBBkupFileFilter());
+		for(int i=0;i<children.length;i++){
+			String fileName = children[i].getName();
+			map.put(getFileInfo(fileName),fileName);
+		}
+		return map;
+	}
+	
+	private String getFileInfo(String name){
+		String res = "";
+		int startIndex = name.lastIndexOf("_") + 1;
+		int endIndex = name.indexOf(".zip");		
+		res = name.substring(startIndex,endIndex);
+		try{
+			long time = Long.valueOf(res.trim()).longValue();
+			Date dt = new Date(time);
+			SimpleDateFormat df = new SimpleDateFormat();
+			res = "Back up on - " + df.format(dt);			
+		}catch(Exception e){
+			res = name;
+		}
+		return res;
+	}
+	
+	public void backUpCurrentDB(){
+		addFilesToArchives();
+	}
+	
+	private void addFilesToArchives(){
+		String fileName = getNewDBBkupFileName();		
+		String filePath = dbBkupLocation +
+							KCatalogConfigOptions.getSeparator() +
+										fileName;
+		try{
+			FileOutputStream fos = new FileOutputStream(filePath);
+			ZipOutputStream zos = new ZipOutputStream(fos);
+			addAllLibToArchive(zos);
+		}catch(Exception e){
+			throw new KCatalogException("Cannot create backup",e);
+		}
+	}
+	
+	public boolean isMarkedForBkup(){
+		String bkupFileName = KCatalogConfigOptions.getOptionValue(
+									KCatalogConstants.CONFIG_RECOVER_DB_STARTUP);		
+		boolean res = true;
+		if("none".equals(bkupFileName) ||
+					"".equals(bkupFileName)){						
+			res = false;
+		}
+		return res;		
+	}	
+	
+	public void recoverOnStartup(){
+		String bkupFileName = "";
+		try{
+			bkupFileName = KCatalogConfigOptions.getOptionValue(
+									KCatalogConstants.CONFIG_RECOVER_DB_STARTUP);	
+		//	System.out.println("bkupFileName " + bkupFileName);
+			if(!"none".equals(bkupFileName)){						
+				makeNewDBFromBkup(bkupFileName);
+			}
+		}catch(Exception e){
+			throw new KCatalogException("Cannot recover data from backup file " + bkupFileName,
+												e);
+		}
+	}
+	
+	public void makeNewDBFromBkup(String bkupFileName)
+									throws Exception{		
+		String bkupFilePath = dbBkupLocation +
+								KCatalogConfigOptions.getSeparator() +
+									bkupFileName;	
+		if(!new File(bkupFilePath).exists()){
+			throw new KCatalogException("Backup file does not exist");
+		}		
+		deleteCurrentDB();		
+		String dbLocation = KCatalogConfigOptions.getOptionValue(
+					KCatalogConstants.CONFIG_DATABASE_LOCATION);		
+		populateDB(dbLocation,bkupFilePath,ARCHIVE_COMMENT_DATABASE);
+		String playlistLocation = KCatalogConfigOptions.getOptionValue(
+					KCatalogConstants.CONFIG_PLAYLIST_LOCATION);				
+		populateDB(playlistLocation,bkupFilePath,ARCHIVE_COMMENT_PLAYLIST);
+	}
+	
+	private void populateDB(String path,String bkupFilePath,String comment)
+								throws Exception{		
+		File file = new File(path);		
+		file.mkdirs();
+		String dbPath = file.getAbsolutePath();
+		copyFilesFromArchiveToNewDB(dbPath,bkupFilePath,comment);
+	}
+	
+	private void copyFilesFromArchiveToNewDB(String dbPath,String bkupFilePath,String comment)
+									throws Exception{
+		ZipFile zFile = new ZipFile(bkupFilePath);		
+		Enumeration enum = zFile.entries();
+	//	System.out.println("reading enum ");
+		while(enum.hasMoreElements()){
+			ZipEntry entry = (ZipEntry)enum.nextElement();
+		//	System.out.println("reading enum "+ entry.getComment());
+			if(comment.equals(entry.getComment())){			
+				String fileName = entry.getName();
+				int index = fileName.lastIndexOf(KCatalogConfigOptions.getSeparator());
+			//	System.out.println("fileName enum "+fileName);
+				if(-1 != index || index >= fileName.length() -1){
+					fileName = fileName.substring(index + 1).trim();
+					String filePath = dbPath + 
+							KCatalogConfigOptions.getSeparator() +
+							fileName;					
+					InputStream is = zFile.getInputStream(entry);			
+					createDBFileFromInputStream(filePath,is);
+				}
+			}			
+		}		
+	}
+	
+	private void createDBFileFromInputStream(String filePath,
+											InputStream is) throws Exception{
+	//	System.out.println("creating " + filePath);
+		FileOutputStream fos = new FileOutputStream(filePath);
+		BufferedOutputStream bos = new BufferedOutputStream(fos);
+		BufferedInputStream br = new BufferedInputStream(is);
+		byte[] buffer = new byte[100];
+		int readNo = br.read(buffer);
+		while(-1 != readNo){
+			bos.write(buffer,0,readNo);
+			readNo = br.read(buffer);
+		}	
+		bos.flush();
+		bos.close();		
+	}
+	
+	
+	public void deleteCurrentDB(){
+		String dbLocation = KCatalogConfigOptions.getOptionValue(
+					KCatalogConstants.CONFIG_DATABASE_LOCATION);
+	//	System.out.println("deleteing db " + dbLocation);
+		deleteLocationRecursively(dbLocation);
+		String plLocation = KCatalogConfigOptions.getOptionValue(
+					KCatalogConstants.CONFIG_PLAYLIST_LOCATION);
+	//	System.out.println("deleteing db " + dbLocation);
+		deleteLocationRecursively(plLocation);
+			
+	}
+	
+	private void deleteLocationRecursively(String loc){
+		File file = new File(loc);
+		if(file.isDirectory()){
+			File [] list = file.listFiles();
+			for(int i=0;i<list.length;i++){
+				if(list[i].isFile()){
+					list[i].delete();
+				}else{				
+					deleteLocationRecursively(list[i].getAbsolutePath());
+				}
+			}	
+			file.delete();
+		}else{						
+			file.delete();			
+		}
+	}
+	
+	
+	public void removeMarkForRecoverOnStartup(){
+		markForRecoverOnStartup("none");	
+	}
+	
+	
+	public void markForRecoverOnStartup(String aliasName){
+		HashMap map = getDBBkupFilesMap();
+		String fileName = aliasName;
+		if(!"none".equals(aliasName)){
+			fileName = (String)map.get(aliasName);
+		}
+		KCatalogConfigOptions.setOptionValue(
+					KCatalogConstants.CONFIG_RECOVER_DB_STARTUP,
+					fileName
+					);		
+	}
+	
+	
+	private void addAllLibToArchive(ZipOutputStream zos) throws Exception{
+		BufferedOutputStream out = new BufferedOutputStream(zos);
+		String playListDirPath = 
+				KCatalogConfigOptions.getOptionValue(
+						KCatalogConstants.CONFIG_PLAYLIST_LOCATION);	
+		addDirToArchiveRecursively(playListDirPath,zos,out,
+									ARCHIVE_COMMENT_PLAYLIST);				
+		
+		String databaseDirPath = 
+				KCatalogConfigOptions.getOptionValue(
+						KCatalogConstants.CONFIG_DATABASE_LOCATION);		
+		addDirToArchiveRecursively(databaseDirPath,zos,out,
+											ARCHIVE_COMMENT_DATABASE);				
+		
+		String configDirPath = 
+				KCatalogCommonUtility.getConfigPath();
+		addDirToArchiveRecursively(configDirPath,zos,out,
+											ARCHIVE_COMMENT_CONFIG);				
+		zos.close();
+		
+	}
+	
+	private void addDirToArchiveRecursively(String sourceFilePath,
+												ZipOutputStream zos,
+												BufferedOutputStream out,
+												String comment)
+													throws Exception{
+		File file = new File(sourceFilePath);
+		if(file.isDirectory()){
+			String dirName = (sourceFilePath.trim().endsWith("/"))?
+								sourceFilePath : sourceFilePath.trim() +"/";	
+		//	ZipEntry ze = new ZipEntry(dirName);
+		//	zos.putNextEntry(ze);
+			File [] children = file.listFiles();
+			for(int i=0;i<children.length;i++){
+				addDirToArchiveRecursively(children[i].getAbsolutePath(),zos,out,comment);
+			}
+		}else{
+			ZipEntry ze = new ZipEntry(sourceFilePath);	
+			ze.setComment(comment);		
+			zos.putNextEntry(ze);			
+			writeFileDataInZipEntry(out,sourceFilePath);
+			
+		}
+	}
+	
+	private void writeFileDataInZipEntry(BufferedOutputStream out,
+									String sourceFilePath) throws Exception{
+		BufferedInputStream br = new BufferedInputStream(new FileInputStream(sourceFilePath));
+		byte[] buffer = new byte[100];
+		int readNo = br.read(buffer);
+		while(-1 != readNo){
+			out.write(buffer,0,readNo);
+			readNo = br.read(buffer);
+		}	
+		out.flush();			
+	}
+		
+}

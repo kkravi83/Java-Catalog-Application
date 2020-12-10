@@ -1,0 +1,113 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   kichi@darkstar                                                        *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.applogic;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import org.w3c.dom.Document;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.NamedNodeMap;
+import java.io.File;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.fileutils.Mp3FileDto;
+
+public class KCatalogXmlSchemaWriter {
+	
+	private int maxFileNo = 0;
+	private String fileNamePrefix = "";
+	private String dataBaseLocation = "";
+	private String separator = "";
+	private int currentFileNo = 0;
+	private int currentNoOfFiles = 0;
+	private int currentNoXMLFilesInSchema = 0;
+	private String prevFileLocation = "";
+	private boolean open = false;
+	private Document doc = null;
+	
+	KCatalogXmlSchemaWriter(){
+		String temp = KCatalogConfigOptions.getOptionValue(
+										KCatalogConstants.CONFIG_MAX_MP3_PER_XML);
+		maxFileNo = Integer.valueOf(temp.trim()).intValue();
+		fileNamePrefix = KCatalogConfigOptions.getOptionValue(
+										KCatalogConstants.CONFIG_FILE_NAME_PREFIX);
+		dataBaseLocation = KCatalogConfigOptions.getOptionValue(
+										KCatalogConstants.CONFIG_DATABASE_LOCATION );
+		open = true;
+		validateConfigInfo();
+	}
+	
+	private void validateConfigInfo(){
+		if(maxFileNo < 10 ){
+			maxFileNo = 100;
+		}
+		if("".equals(fileNamePrefix)){
+			fileNamePrefix = "mp3Info";
+		}
+		File fl = new File(dataBaseLocation); 
+		if( !fl.isDirectory() ){			
+			if(!fl.mkdir()){
+				KCatalogException exc = 
+						new KCatalogException(KCatalogConstants.ERROR_DATABASE_DIR);
+				throw exc;
+			}
+		}
+	}
+	
+	public boolean write(Mp3FileDto mp3FileDto){
+		if(!open){
+			return false;
+		}
+		if(doc == null){
+			doc = getDocumentFromFactory();
+		}
+		if(currentFileNo == 0){
+			currentNoXMLFilesInSchema = getMaxNoOfFilesInSchema();
+		}
+		return true;
+	}
+	
+	private Document getDocumentFromFactory(){
+		try{
+			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+			dbf.setIgnoringComments(true);
+			DocumentBuilder db = dbf.newDocumentBuilder();		
+			return db.newDocument();
+		}catch(Exception e){
+			KCatalogException kce = new KCatalogException(
+											KCatalogConstants.ERROR_WRITING_DATABASE);			
+			throw kce;
+		}
+		
+	}
+	
+	private int getMaxNoOfFilesInSchema(){
+		String fileName = "";
+		int i = 1;
+		fileName = fileNamePrefix + "_" + String.valueOf(i);
+		while( new File(fileName).isFile() ){
+			i++;
+			fileName = fileNamePrefix + "_" + String.valueOf(i);	
+		}
+		return i;
+	}
+}

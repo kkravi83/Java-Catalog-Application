@@ -1,0 +1,169 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.gui;
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+import javax.swing.table.*;
+import javax.swing.plaf.basic.*;
+import javax.swing.border.TitledBorder;
+import javax.swing.event.*;
+
+import javax.swing.border.LineBorder;
+
+import com.kcatalog.gui.KCatalogGuiSearchValueTableModel;
+import com.kcatalog.gui.KCatalogGuiMp3TableRenderer;
+import com.kcatalog.gui.KCatalogGuiSearchTab;
+import com.kcatalog.gui.KCatalogGui;
+import com.kcatalog.gui.KCatalogGuiBrowseTab;
+import com.kcatalog.gui.KCatalogGuiBrowseTableModel;
+import com.kcatalog.gui.KCatalogGuiProperties;
+import com.kcatalog.gui.KCatalogProgressIndicatorDlg;
+
+import com.kcatalog.common.KCatalogDto;
+import com.kcatalog.fileutils.FileManager;
+import com.kcatalog.fileutils.Mp3FileDto;
+import com.kcatalog.applogic.KCatalogUpdateMp3InfoDto;
+import com.kcatalog.common.KCatalogCommonDto;
+import com.kcatalog.common.KCatalogConstants;
+import com.kcatalog.common.KCatalogStatusManager;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogCommonUtility;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaSearch;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaLookup;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaLocationMapping;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaSynchronizeData;
+import com.kcatalog.fileutils.M3UPlayListManager;
+import javax.swing.tree.*;
+
+import java.util.Comparator;
+import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.io.File;
+import java.io.FileOutputStream;
+import javax.swing.tree.TreeModel;
+import javax.swing.tree.TreePath;
+import javax.swing.event.TreeModelListener;
+
+public class KCatalogGuiMp3TreeComponents {
+	public static String ROOT_STRING = "Mp3 Database";
+	public static String ATTR_ARTIST = "artist";
+	public static String ATTR_ALBUM = "album";
+	public static String ATTR_GENRE = "genre";	
+	public static String ATTR_TITLE = "title";	
+	public static String ATTR_COMMENT = "comment";
+	public static String ATTR_PLAYLIST = "playList";
+	
+	private String treeType = "";
+	
+	public KCatalogGuiMp3TreeComponents(String treeType) {	
+		this.treeType = treeType;	
+	}
+
+
+	public class Mp3TreeModel implements TreeModel{
+		ArrayList nodeList = null;
+		
+		Mp3TreeModel(){
+			populateNodeList();
+		}
+		
+		public Object getRoot() {			
+			return ROOT_STRING;
+		}
+	
+		public Object getChild(Object parent, int index) {		
+			if(ROOT_STRING.equals(parent.toString())){
+				if(null == nodeList){
+					populateNodeList();
+				}	
+			}
+			String child = (null == nodeList || index >= nodeList.size())? 
+								ROOT_STRING:nodeList.get(index).toString();		
+			
+			child = ("".equals(child.trim()) ||
+							KCatalogConstants.MESSAGE_NA.equals(child.trim()))? KCatalogConstants.MESSAGE_EMPTY : child;
+			child = child.replaceAll("\n"," ");			
+			return child;
+		}
+	
+		private void populateNodeList(){			
+			String searchAttribute = "";
+			if(ATTR_ALBUM.equals(treeType)){
+				searchAttribute = KCatalogXMLSchemaSearch.ATTR_ALBUM;
+			}
+			if(ATTR_ARTIST.equals(treeType)){
+				searchAttribute = KCatalogXMLSchemaSearch.ATTR_ARTIST;
+			}
+			if(ATTR_COMMENT.equals(treeType)){
+				searchAttribute = KCatalogXMLSchemaSearch.ATTR_COMMENT;
+			}	
+			if(ATTR_PLAYLIST.equals(treeType)){
+				searchAttribute = ATTR_PLAYLIST;
+			}	
+			if(ATTR_GENRE.equals(treeType)){
+				searchAttribute = KCatalogXMLSchemaSearch.ATTR_GENRE;
+			}			
+			if(ATTR_TITLE.equals(treeType)){
+				searchAttribute = KCatalogXMLSchemaSearch.ATTR_TITLE;
+			}	
+			if(	!ATTR_PLAYLIST.equals(searchAttribute)){
+				KCatalogXMLSchemaSearch ss = 
+							KCatalogXMLSchemaSearch.newInstance();
+				nodeList = ss.getAttributeValuesForMp3(searchAttribute);							
+			}else{
+				nodeList = M3UPlayListManager.getInstance().getPlayLists();
+			}
+			Collections.sort(nodeList);
+		}
+				
+		public int getChildCount(Object parent) {
+			return nodeList.size();
+		}
+
+		public boolean isLeaf(Object node) {
+			boolean res = true;
+			if(ROOT_STRING.equals(node.toString())){
+				res = false;;
+			}
+			return res;
+		}
+	
+		public void valueForPathChanged(TreePath path, Object newValue) {			
+		}
+	
+		public int getIndexOfChild(Object parent, Object child) {
+			int index = 0;
+			
+			if(ROOT_STRING.equals(parent.toString())){
+				index = nodeList.indexOf(child);
+			}
+			return index;
+		}
+
+		public void addTreeModelListener(TreeModelListener l) {			
+		}
+	
+		public void removeTreeModelListener(TreeModelListener l) {			
+		}	
+	}
+}

@@ -1,0 +1,848 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.gui;
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+import javax.swing.event.*;
+import javax.swing.table.*;
+import javax.swing.plaf.basic.*;
+import javax.swing.border.TitledBorder;
+import javax.swing.border.LineBorder;
+
+import com.kcatalog.gui.KCatalogGuiMp3TreeComponents;
+import com.kcatalog.gui.KCatalogGuiBrowseTableModel;
+import com.kcatalog.gui.KCatalogGuiMp3TableRenderer;
+import com.kcatalog.gui.KCatalogGuiSearchTabAction;
+import com.kcatalog.gui.KCatalogGuiTreeModel;
+import com.kcatalog.gui.KCatalogGuiBrowseTabAction;
+import com.kcatalog.fileutils.M3UPlayListManager;
+import java.awt.event.ActionListener;
+import java.util.EventListener;
+import java.awt.event.ActionEvent;
+
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogCommonUtility;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.common.KCatalogConstants;
+import java.util.ArrayList;
+import java.util.Iterator;
+import javax.swing.tree.*;
+import javax.swing.table.*;
+import javax.swing.border.*;
+
+public class KCatalogGuiBrowseTab  {
+	
+	
+	
+	Box verticalBox = Box.createVerticalBox();
+	Box vbLeft = Box.createVerticalBox();
+	Box vbRight = Box.createVerticalBox();
+	KCatalogGuiBrowseTab currentRef = this;
+	JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+	JPanel leftPanel = new JPanel();
+	JPanel rightPanel = new JPanel();	
+	int width = 750;
+	int height = 550;
+	int widthSP = 0;
+	int heightSP = 0;
+	KCatalogGuiBrowseTab currRef = this;
+	KCatalogGui mainFrame = null;
+	JTableHeader mp3TableHeader = null;
+	JTree locationTree = new JTree();
+	KCatalogGuiTreeModel treeModel = new KCatalogGuiTreeModel();				
+	KCatalogGuiBrowseTableModel dm = new KCatalogGuiBrowseTableModel();
+	JTable mp3ListTable = new JTable(dm);		
+	JLabel searchTxt = new JLabel("Contains ");
+	JButton searchButton = new JButton("Search");
+	JCheckBox searchCheck = new JCheckBox("Search Subfolders Also",false);
+	JTextField searchPattern = new JTextField();
+	JComboBox searchCombo = new JComboBox(new Object[]{
+											"All",
+											"File Name",											
+											"Title",
+											"Artist",
+											"Album",
+											"Comment",
+											"Genre"											
+											});	
+			
+	JPopupMenu rightClickTableMenu = new JPopupMenu();
+	JMenuItem playMenu = new JMenuItem("Play Files");
+	JMenuItem openContainingFolderMenu = new JMenuItem("Open containing folder");
+	JMenuItem synchronizeMenu = 	new JMenuItem("Synchronize");
+	JMenuItem deleteFromPlayListMenu = 	new JMenuItem("Delete from playlist");
+	JMenuItem deleteMenu = 	new JMenuItem("Delete From DB");
+	JMenuItem propertyMenu = 	new JMenuItem("Additional Info");
+	JMenuItem playListInfoMenu = new JMenuItem("Playlist Information");
+	
+	JMenu addFilesPlayListMenu = new JMenu("Add To Playlist");
+	
+	ArrayList playListMenuList = new ArrayList();
+	
+	
+	JPopupMenu rightClickTreeMenu = new JPopupMenu();
+	JMenuItem playDirMenu = new JMenuItem("Play Files");	
+	JMenuItem synchronizeDirMenu = 	new JMenuItem("Synchronize");
+	JMenuItem deleteDirMenu = 	new JMenuItem("Delete From DB");
+	JMenuItem openDirMenu = 	new JMenuItem("Open folder");
+	JMenuItem propertyDirMenu = 	new JMenuItem("Additional Info");
+	JMenu addToPlaylistDirMenu = new JMenu("Add To Playlist");
+	JMenuItem mapLocationMenu = 	new JMenuItem("Map To New Location");
+	
+	
+	
+	
+	JTree mp3AttributeTree = new JTree();
+	
+	JScrollPane sp1 = new JScrollPane(leftPanel);
+	JScrollPane sp2 = new JScrollPane(rightPanel);
+	
+	public static String BROWSE_LOCATION = "browseLocation";
+	public static String BROWSE_ARTIST = "browseArtist";
+	public static String BROWSE_GENRE = "browseGenre";
+	public static String BROWSE_ALBUM= "browseAlbum";
+	public static String BROWSE_COMMENT = "browseComment";
+	public static String BROWSE_TITLE = "browseTitle";
+	public static String BROWSE_PLAYLIST = "browsePlaylist";
+	
+	M3UPlayListManager playListManager = M3UPlayListManager.getInstance();		
+	
+	public String browseMode = BROWSE_LOCATION;
+	
+	public Box getVerticalBoxForDBTab(int width,int height,
+							KCatalogGui mainFrame){
+		this.width = width ;
+		this.height = height;
+		this.mainFrame = mainFrame;					
+		addSplitPanel();
+		addComponentsToLeftPanel();		
+		addComponentsToRightPanel();
+		addMouseListener();	
+		addTreeListener();
+		addTreeExpandListeners();
+		addMenuItemsForTable();
+		addListenersForPopupMenu();
+		addListenerForButtons();
+		setNameForComponents();		
+		addPlayListsToMenu();					
+		return verticalBox;
+	}
+		
+
+	public void setText(){	
+				
+			
+		playDirMenu.setText(mainFrame.playDirMenu.getText() +
+				"                          Shift-Enter");
+		openDirMenu.setText(mainFrame.openDirMenu.getText() +
+						"             Shift-O");		
+		
+		synchronizeDirMenu.setText(mainFrame.synchronizeDirMenu.getText() +
+						"           Shift-R");
+		deleteDirMenu.setText(mainFrame.deleteDirMenu.getText() +
+						"   Shift-Delete");
+		
+		playMenu.setText(mainFrame.playMenu.getText() +
+						"                              Ctrl-Enter");
+		openContainingFolderMenu.setText(mainFrame.openContainingFolderMenu.getText() +
+						"         Ctrl-O");
+	
+		playListInfoMenu.setText(mainFrame.playListInfoMenu.getText() +
+						"               Ctrl-I");
+		deleteMenu.setText(mainFrame.deleteMenu.getText() +
+						"                     Ctrl-Delete");
+		synchronizeMenu.setText(mainFrame.synchronizeMenu.getText() +
+						"                          Ctrl-R");
+		
+	}
+	
+	private void createPlaylistMenuItem(JMenuItem[] items,String menuText){
+		for(int i=0;i<items.length;i++){
+			if( null == items[i]){
+				items[i] = new JMenuItem();
+				items[i].setText(menuText);
+				items[i].setName(menuText);
+			}
+		}
+	}
+	
+	private void addActionListenersForPlaylistMenu(JMenuItem[] items,
+							ActionListener tableListener,
+							ActionListener treeListener){	
+		items[0].addActionListener(tableListener);		
+		items[1].addActionListener(treeListener);		
+		items[2].addActionListener(tableListener);		
+		items[3].addActionListener(treeListener);			
+	}
+	
+	private void addPlayListsToMenus(JMenuItem[] playLists){
+		JMenu addToListTableMenu = this.addFilesPlayListMenu;
+		JMenu addToListTreeMenu = this.addToPlaylistDirMenu;		
+		JMenu addToListTableMainMenu = mainFrame.addFilesPlayListMenu;
+		JMenu addToListTreeMainMenu = mainFrame.addToPlaylistDirMenu;
+		
+		addToListTableMenu.add(playLists[0]);
+		addToListTreeMenu.add(playLists[1]);
+		addToListTableMainMenu.add(playLists[2]);
+		addToListTreeMainMenu.add(playLists[3]);				
+	}
+	
+	public void addPlayListsToMenu(){
+		JMenu addToListTableMenu = this.addFilesPlayListMenu;
+		JMenu addToListTreeMenu = this.addToPlaylistDirMenu;
+		
+		JMenu addToListTableMainMenu = mainFrame.addFilesPlayListMenu;
+		JMenu addToListTreeMainMenu = mainFrame.addToPlaylistDirMenu;
+		
+		playListManager.populatePlaylistMap();
+		ArrayList list = playListManager.getPlayLists();
+		addToListTableMenu.removeAll();
+		addToListTreeMenu.removeAll();
+		addToListTableMainMenu.removeAll();
+		addToListTreeMainMenu.removeAll();
+		
+		PopupMenuPlaylistSelectionListener pl = 
+					new PopupMenuPlaylistSelectionListener();
+		PopupMenuPlaylistDirSelectionListener tl = 
+					new PopupMenuPlaylistDirSelectionListener();
+					
+		if(list.isEmpty()){
+			JMenuItem[] menuNone = new JMenuItem[4];
+			createPlaylistMenuItem(menuNone,"None");			
+			addPlayListsToMenus(menuNone);			
+		}else{
+			Iterator it = list.iterator();			
+			while(it.hasNext()){
+				String menuName = (String)it.next();
+				JMenuItem[] menuItems = new JMenuItem[4];
+				createPlaylistMenuItem(menuItems,menuName);	
+				addPlayListsToMenus(menuItems);			
+				addActionListenersForPlaylistMenu(menuItems,pl,tl);
+				playListMenuList.add(menuItems[0]);								
+			}		
+		}
+	}
+	
+	public void enableTreeMp3Tree(String browseMode){		
+		this.browseMode = browseMode;				
+		if(BROWSE_LOCATION.equals(browseMode)){
+			showMenuItems(true);
+			mp3AttributeTree.setVisible(false);
+			locationTree.setVisible(true);			
+			locationTree.updateUI();			
+			clearMp3Table();
+		//	mp3ListTable.updateUI();
+			mp3ListTable.invalidate();
+			mp3ListTable.validate();
+			mainFrame.showAllBrowseLocationItems();
+			
+		}else{
+			if(BROWSE_PLAYLIST.equals(browseMode)){
+				mp3AttributeTree.setVisible(true);
+				locationTree.setVisible(false);
+				showMenuItemsForAttributeTree();			
+				addComponentsToAttributeTree();
+				clearMp3Table();
+				mp3AttributeTree.updateUI();
+				//mp3ListTable.updateUI();
+				mp3ListTable.invalidate();
+				mp3ListTable.validate();
+				mainFrame.showAllBrowsePlaylistItems();
+			}else{
+				mp3AttributeTree.setVisible(true);
+				locationTree.setVisible(false);
+				showMenuItemsForAttributeTree();			
+				addComponentsToAttributeTree();
+				clearMp3Table();
+				mp3AttributeTree.updateUI();
+				//mp3ListTable.updateUI();
+				mp3ListTable.invalidate();
+				mp3ListTable.validate();
+				mainFrame.showAllBrowseMp3AttributeItems();
+			}
+			
+		}
+	}
+	
+	private void clearMp3Table(){
+		for(int i =0;i<mp3ListTable.getRowCount();i++){			
+				for(int j=0;j<mp3ListTable.getColumnCount();j++){
+					mp3ListTable.setValueAt("",i,j);		
+				}		
+		}
+	}
+	
+	private void showMenuItemsForAttributeTree(){		
+		showMenuItems(false);
+		playDirMenu.setEnabled(true);
+		addToPlaylistDirMenu.setEnabled(true);
+		deleteDirMenu.setEnabled(true);
+		if(BROWSE_PLAYLIST.equals(browseMode)){
+			openDirMenu.setEnabled(true);
+		}
+	}
+	
+	private String getAttributeTypeForMp3Tree(){
+		String res = "";
+		if(BROWSE_LOCATION.equals(browseMode)){
+			res = BROWSE_LOCATION;
+		}
+		if(BROWSE_ARTIST.equals(browseMode)){
+			res = KCatalogGuiMp3TreeComponents.ATTR_ARTIST;
+		}
+		if(BROWSE_ALBUM.equals(browseMode)){
+			res = KCatalogGuiMp3TreeComponents.ATTR_ALBUM;
+		}
+		if(BROWSE_GENRE.equals(browseMode)){
+			res = KCatalogGuiMp3TreeComponents.ATTR_GENRE;
+		}
+		if(BROWSE_TITLE.equals(browseMode)){
+			res = KCatalogGuiMp3TreeComponents.ATTR_TITLE;
+		}
+		if(BROWSE_COMMENT.equals(browseMode)){
+			res = KCatalogGuiMp3TreeComponents.ATTR_COMMENT;
+		}
+		if(BROWSE_PLAYLIST.equals(browseMode)){
+			res = KCatalogGuiMp3TreeComponents.ATTR_PLAYLIST;
+		}
+		return res;
+	}
+	
+	private void addComponentsToAttributeTree(){
+		KCatalogGuiMp3TreeComponents components
+				= new KCatalogGuiMp3TreeComponents(getAttributeTypeForMp3Tree());		
+		this.mp3AttributeTree.setModel(
+							 components.new Mp3TreeModel());
+	}
+	
+	private void showMenuItems(boolean enable){
+		playDirMenu.setEnabled(enable);
+		addToPlaylistDirMenu.setEnabled(enable);
+		synchronizeDirMenu.setEnabled(enable);
+		deleteDirMenu.setEnabled(enable);
+		openDirMenu.setEnabled(enable);
+		propertyDirMenu.setEnabled(enable);
+		mapLocationMenu.setEnabled(enable);			
+		
+	}
+	
+	private void addListenersForPopupMenu(){
+		PopupMenuSelectionListener pl = new PopupMenuSelectionListener();
+		playMenu.addActionListener(pl);				
+		deleteFromPlayListMenu.addActionListener(pl);
+		playListInfoMenu.addActionListener(pl);
+		synchronizeMenu.addActionListener(pl);
+		deleteMenu.addActionListener(pl);
+		propertyMenu.addActionListener(pl);
+		openContainingFolderMenu.addActionListener(pl);
+		TreePopupMenuSelectionListener tl = new TreePopupMenuSelectionListener();
+		playDirMenu.addActionListener(tl);
+		addToPlaylistDirMenu.addActionListener(tl);
+		synchronizeDirMenu.addActionListener(tl);
+		deleteDirMenu.addActionListener(tl);
+		propertyDirMenu.addActionListener(tl);
+		mapLocationMenu.addActionListener(tl);
+		openDirMenu.addActionListener(tl);
+	}
+	
+	private void addListenerForButtons(){
+		SearchButtonListener sl = new SearchButtonListener();
+		searchButton.addActionListener(sl);
+	}
+	
+	void unCheckAllPopupMenu(){
+		playMenu.setSelected(false);					
+		synchronizeMenu.setSelected(false);					
+		deleteMenu.setSelected(false);	
+		propertyMenu.setSelected(false);				
+		playDirMenu.setSelected(false);							
+		synchronizeDirMenu.setSelected(false);					
+		deleteDirMenu.setSelected(false);
+		propertyDirMenu.setSelected(false);				
+	}
+	
+	private void addTreeExpandListeners(){
+		LocationTreeExpansionListener expList = 
+						new LocationTreeExpansionListener();
+		LocationTreeExpandedListener expandedList = 
+						new LocationTreeExpandedListener();
+		locationTree.addTreeExpansionListener(expandedList);
+		locationTree.addTreeWillExpandListener(expList);
+				
+		mp3AttributeTree.addTreeExpansionListener(expandedList);
+		mp3AttributeTree.addTreeWillExpandListener(expList);
+	}
+	
+	private void setNameForComponents(){
+		playMenu.setName("playMenu");						
+		deleteFromPlayListMenu.setName("deleteFromPlayListMenu");
+		playListInfoMenu.setName("playListInfoMenu");
+		synchronizeMenu.setName("synchronizeMenu");
+		deleteMenu.setName("deleteMenu");
+		propertyMenu.setName("propertyMenu");
+		searchButton.setName("searchButton");
+		playDirMenu.setName("playDirMenu");						
+		addToPlaylistDirMenu.setName("addToPlaylistDirMenu");
+		synchronizeDirMenu.setName("synchronizeDirMenu");
+		deleteDirMenu.setName("deleteDirMenu");
+		propertyDirMenu.setName("propertyDirMenu");
+		mapLocationMenu.setName("mapLocationMenu");
+		openContainingFolderMenu.setName("openContainingFolderMenu");
+		openDirMenu.setName("openDirMenu");
+		locationTree.setName("locationTree");
+		mp3AttributeTree.setName("mp3AttributeTree");
+		
+	}
+	
+	private void addMenuItemsForTable(){				
+		rightClickTableMenu.add(openContainingFolderMenu);			
+		rightClickTableMenu.add(playMenu);					
+		rightClickTableMenu.addSeparator();
+		
+		rightClickTableMenu.add(addFilesPlayListMenu);						
+		rightClickTableMenu.add(deleteFromPlayListMenu);
+		rightClickTableMenu.add(playListInfoMenu);	
+		rightClickTableMenu.addSeparator();
+		
+		rightClickTableMenu.add(deleteMenu);
+		rightClickTableMenu.add(synchronizeMenu);			
+		rightClickTableMenu.add(propertyMenu);		
+		/************************************/
+		rightClickTreeMenu.add(openDirMenu);
+		rightClickTreeMenu.add(playDirMenu);								
+		rightClickTreeMenu.addSeparator();
+		
+		rightClickTreeMenu.add(addToPlaylistDirMenu);		
+		rightClickTreeMenu.addSeparator();
+		
+		rightClickTreeMenu.add(mapLocationMenu);
+		rightClickTreeMenu.addSeparator();
+		
+		rightClickTreeMenu.add(synchronizeDirMenu);				
+		rightClickTreeMenu.add(deleteDirMenu);
+		
+	}
+	
+	private void addMouseListener(){
+		MouseClickListener ml = new MouseClickListener();
+		locationTree.addMouseListener(ml );
+		mp3ListTable.addMouseListener(ml);
+		mp3TableHeader.addMouseListener(ml);
+		
+		mp3AttributeTree.addMouseListener(ml);
+	}
+	
+	private void addTreeListener(){
+		
+		LocationTreeSelectionListener tl = new LocationTreeSelectionListener();
+		locationTree.addTreeSelectionListener(tl);
+		
+		mp3AttributeTree.addTreeSelectionListener(tl);
+	}
+	
+	private void addComponentsToRightPanel(){
+
+		vbRight.add(addSearchPanel());
+		vbRight.add(addTableToRightPanel());
+	
+		rightPanel.add(BorderLayout.NORTH,vbRight);
+	}
+	
+	private Box addSearchPanel(){
+		Box horz = Box.createHorizontalBox();
+		JPanel p = new JPanel();
+		p.setPreferredSize(new Dimension((int)sp2.getPreferredSize().getWidth(),
+							(int)sp2.getPreferredSize().getHeight()/12));
+		Box phorz = Box.createHorizontalBox();
+		phorz.add(searchCombo);
+		phorz.add(Box.createHorizontalStrut(2));
+		phorz.add(searchTxt);
+		phorz.add(Box.createHorizontalStrut(2));
+		searchPattern.setMinimumSize(new Dimension(50,10));
+		searchPattern.setPreferredSize(new Dimension(90,10));
+		phorz.add(searchPattern);		
+		phorz.add(Box.createHorizontalStrut(2));
+		phorz.add(searchButton);
+		phorz.add(Box.createHorizontalStrut(2));
+		phorz.add(searchCheck);
+		phorz.add(Box.createHorizontalGlue());			
+		p.add(BorderLayout.EAST,phorz);
+		horz.add(p);		
+		return horz;	
+	}
+	
+	private Component addTableToRightPanel(){
+		Box horz = Box.createHorizontalBox();	
+		mp3ListTable.setMinimumSize(sp2.getPreferredSize());
+		mp3ListTable.setDefaultRenderer(new String().getClass(),new Mp3ListTableRenderer());
+		mp3ListTable.setDefaultRenderer(new JLabel().getClass(),new Mp3ListTableRenderer());
+		mp3ListTable.setShowGrid(false);
+		mp3ListTable.setShowHorizontalLines(false);
+		mp3ListTable.setShowVerticalLines(false);								
+		mp3TableHeader = new JTableHeader(mp3ListTable.getColumnModel());
+		mp3TableHeader.setResizingAllowed(true);
+		mp3TableHeader.setReorderingAllowed(false);		
+		mp3ListTable.setTableHeader(mp3TableHeader);		
+		JScrollPane pane = new JScrollPane(mp3ListTable);
+		pane.setPreferredSize(new Dimension((int)sp2.getPreferredSize().getWidth(),
+							(int)sp2.getPreferredSize().getHeight() - 10));
+		pane.getViewport().setBackground(locationTree.getBackground());
+		pane.getViewport().setOpaque(true);
+		horz.add(pane);	
+		horz.add(Box.createHorizontalGlue());
+		JPanel p = new JPanel();
+		p.add(BorderLayout.EAST,horz);		
+		Box horzPanelBox = Box.createHorizontalBox();
+		p.setPreferredSize(sp2.getPreferredSize());		
+		horzPanelBox.add(p);
+		return horzPanelBox;	
+	}
+	
+	private void addComponentsToLeftPanel(){
+		
+		vbLeft.add(addTreeToLeftPanel());
+		vbLeft.add(Box.createVerticalGlue());
+		leftPanel.setBackground(locationTree.getBackground());		
+		leftPanel.add(BorderLayout.NORTH,vbLeft);
+	}
+	
+	private Box addTreeToLeftPanel(){
+		Box horz = Box.createHorizontalBox();		
+		locationTree.setMinimumSize(sp1.getPreferredSize());
+		locationTree.setCellRenderer(new LocationTreeCellRenderer());			
+		locationTree.setModel(treeModel);
+		horz.add(locationTree);
+		locationTree.setVisible(true);
+		
+		mp3AttributeTree.setMinimumSize(sp1.getPreferredSize());
+		mp3AttributeTree.setVisible(false);
+		mp3AttributeTree.setCellRenderer(new LocationTreeCellRenderer());
+		
+		horz.add(mp3AttributeTree);
+		
+		horz.add(Box.createHorizontalGlue());
+		return horz;	
+	}
+	
+	private void addSplitPanel(){
+		Box vb1 = Box.createVerticalBox();					
+		Box horz = Box.createHorizontalBox();		
+		splitPane.setDividerLocation(.4);					
+		sp1.setPreferredSize(new Dimension(width/6,height-100));
+		sp1.setMinimumSize(new Dimension(width/6,height-100));				
+		sp2.setPreferredSize(new Dimension(width - width/6,height-100));
+		sp2.setMaximumSize(new Dimension(width - width/6,height-100));		
+		splitPane.setPreferredSize(new Dimension(width ,height-50));		
+		splitPane.setLeftComponent(sp1);
+		splitPane.setRightComponent(sp2);		
+		horz.add(splitPane);	
+		JPanel p = new JPanel();
+		p.add(horz);
+		JScrollPane sp = new JScrollPane(p);
+		sp.setPreferredSize(new Dimension(width,height));
+		p.setPreferredSize(new Dimension(width,height));
+		verticalBox.add(horz);
+	}
+		
+	private boolean isTreeSelectionMade(){
+		boolean res = false;
+		if(BROWSE_LOCATION.equals(browseMode)){
+			if(1 == locationTree.getSelectionCount()){
+				res = true;
+			}
+		}else{
+			if(1 == mp3AttributeTree.getSelectionCount()){
+				res = true;
+			}				
+		}
+		return res;
+	}
+
+	private boolean isTableSelectionMade(){
+		boolean res = false;
+		if(mp3ListTable.getSelectedRowCount() > 0 ){
+			res = true;
+		}
+		return res;
+	}
+		
+
+	class LocationTreeCellRenderer implements TreeCellRenderer{
+		public Component getTreeCellRendererComponent(JTree tree,
+								 Object value, 
+								 boolean sel, 
+								 boolean expanded, 
+								 boolean leaf, 
+								 int row, boolean hasFocus){
+			DefaultTreeCellRenderer cr = new DefaultTreeCellRenderer();
+			String str = value.toString();
+			int pos = str.lastIndexOf(KCatalogConfigOptions.getSeparator());
+			str = str.substring(pos+1);
+			if( KCatalogGuiTreeModel.isComment(str.trim())){
+				String imageLoc = KCatalogCommonUtility.getConfigPath()+
+							 KCatalogConfigOptions.getSeparator()
+								+ "removable.png";	
+				ImageIcon icon = new ImageIcon(imageLoc);
+				cr.setLeafIcon(icon);
+				cr.setOpenIcon(icon);
+				cr.setClosedIcon(icon);
+			}else{
+				cr.setLeafIcon(cr.getOpenIcon());
+			}
+			return cr.getTreeCellRendererComponent(tree,str,sel,expanded,leaf,
+											row,hasFocus);						
+		}
+	}
+	
+	class Mp3ListTableRenderer implements TableCellRenderer{
+		public Component getTableCellRendererComponent(JTable table, Object value, 
+					boolean isSelected, boolean hasFocus, int row, int column){
+			Component c =
+			  new DefaultTableCellRenderer().getTableCellRendererComponent(table,
+					value,isSelected,hasFocus,row,column);		
+			return c;
+		}
+	}
+	
+	class MouseClickListener extends MouseAdapter implements Runnable{
+		MouseEvent e = null;
+		public void mouseClicked(MouseEvent e){
+			this.e = e;
+			performAction();
+			/*if(e.getButton() == MouseEvent.BUTTON3){
+				performAction();
+			}else{			
+				Thread t = new Thread(this);
+				t.start();		
+			}*/
+		}
+		public void run(){						
+			performAction();	
+		}
+		private void performAction(){
+			try{
+				KCatalogGuiBrowseTabAction action =
+					new KCatalogGuiBrowseTabAction(mainFrame,currRef,e);	
+				action.processMouseClickAction();		
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}
+	}
+	
+	class TreePopupMenuSelectionListener implements ActionListener
+								,Runnable{
+		ActionEvent e = null;
+		public void actionPerformed(ActionEvent e) {
+			this.e = e;
+			Thread t = new Thread(this);
+			t.start();			
+			//performAction();
+		}
+			
+		
+		public void run(){
+			performAction();
+		}
+		
+		private void performAction(){
+			try{
+				if(!isTreeSelectionMade()){
+					JOptionPane.showMessageDialog(mainFrame,
+								"Please make a valid selection",
+								"KCatalog",
+								JOptionPane.INFORMATION_MESSAGE);
+				}else{
+					KCatalogGuiBrowseTabAction action =
+						new KCatalogGuiBrowseTabAction(mainFrame,currRef,e);
+								action.processTreePopupMenuAction();
+				}
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}
+	}
+	
+	class PopupMenuPlaylistDirSelectionListener
+				extends PopupMenuSelectionListener implements ActionListener,
+										Runnable{
+		ActionEvent e = null;
+		public void actionPerformed(ActionEvent e) {
+			this.e = e;
+			//Thread t = new Thread(this);
+			//t.start();
+			performAction();
+		}
+		
+		private void performAction(){
+			try{
+				if(!isTreeSelectionMade()){
+					JOptionPane.showMessageDialog(mainFrame,
+								"Please make a valid selection",
+								"KCatalog",
+								JOptionPane.INFORMATION_MESSAGE);
+				}else{
+					KCatalogGuiBrowseTabAction action =
+						new KCatalogGuiBrowseTabAction(mainFrame,currRef,e);
+					action.processPlayListDirAction();
+				}
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}
+		
+		public void run(){
+			performAction();
+		}
+	}
+	
+	class PopupMenuPlaylistSelectionListener extends PopupMenuSelectionListener
+								 implements ActionListener,
+									Runnable{
+		ActionEvent e = null;
+		public void actionPerformed(ActionEvent e) {
+			this.e = e;
+			//Thread t = new Thread(this);
+			//t.start();
+			processAction();
+		}
+		
+		private void processAction(){
+			try{
+				if(!isTableSelectionMade()){
+					JOptionPane.showMessageDialog(mainFrame,
+								"Please make a valid selection",
+								"KCatalog",
+								JOptionPane.INFORMATION_MESSAGE);
+				}else{
+					KCatalogGuiBrowseTabAction action =
+				  	new KCatalogGuiBrowseTabAction(mainFrame,currRef,e);	
+					action.processPlayListAction();
+				}
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}
+		
+		public void run(){
+			processAction();
+		}
+		
+		
+	}
+	
+	
+	class PopupMenuSelectionListener implements ActionListener,
+							Runnable{
+		ActionEvent e = null;
+		public void actionPerformed(ActionEvent e) {
+			this.e = e;
+			Thread t = new Thread(this);
+			t.start();
+		}				
+		public void run(){
+			try{
+				if(!isTableSelectionMade()){
+					JOptionPane.showMessageDialog(mainFrame,
+								"Please make a valid selection",
+								"KCatalog",
+								JOptionPane.INFORMATION_MESSAGE);
+				}else{
+					KCatalogGuiBrowseTabAction action =
+						new KCatalogGuiBrowseTabAction(mainFrame,currRef,e);
+					action.processTablePopupMenuAction();
+				}
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}
+	}
+	class SearchButtonListener implements ActionListener, Runnable{
+		ActionEvent e = null;
+		public void actionPerformed(ActionEvent e) {			
+		/*	KCatalogGuiBrowseTabAction action =
+						new KCatalogGuiBrowseTabAction(mainFrame,currRef,e)
+			action.processSearchButtonAction(); */
+			Thread t = new Thread(this);
+			this.e = e;
+			t.start();
+		}
+		
+		public void run(){
+			try{
+				KCatalogGuiBrowseTabAction action =
+						new KCatalogGuiBrowseTabAction(mainFrame,currRef,e);
+				action.processSearchButtonAction(); 
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}
+	}
+	
+	class LocationTreeSelectionListener implements TreeSelectionListener,
+								Runnable{
+		TreeSelectionEvent e;		
+		public void valueChanged(TreeSelectionEvent e){
+			this.e = e;
+			//Thread t = new Thread(this);
+			//t.start();		
+			performAction();
+		}          		
+		public void run(){
+		 	performAction();
+		}		
+		private void performAction(){
+			try{
+				KCatalogGuiBrowseTabAction action =
+						new KCatalogGuiBrowseTabAction(mainFrame,currRef,e);
+				action.processTreeSelectionAction();	
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}
+	}
+	
+	class LocationTreeExpansionListener implements TreeWillExpandListener{
+		Cursor waitCursor = new Cursor(Cursor.WAIT_CURSOR);
+		
+		public void treeWillCollapse(TreeExpansionEvent event)  {
+			mainFrame.setCursor(waitCursor);
+		}
+		
+		public void treeWillExpand(TreeExpansionEvent event){
+			mainFrame.setCursor(waitCursor);
+		}
+	}
+	
+	class LocationTreeExpandedListener implements TreeExpansionListener{
+		Cursor normalCursor = new Cursor(Cursor.DEFAULT_CURSOR);
+		
+		public void treeCollapsed(TreeExpansionEvent event)   {
+			mainFrame.setCursor(normalCursor);
+		}
+		
+		public void treeExpanded(TreeExpansionEvent event) {
+			mainFrame.setCursor(normalCursor);
+		}
+	}
+}	
+
+

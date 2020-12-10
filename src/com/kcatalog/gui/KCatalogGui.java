@@ -1,0 +1,862 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+
+
+package com.kcatalog.gui;
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+import javax.swing.table.*;
+import javax.swing.plaf.basic.*;
+import javax.swing.border.TitledBorder;
+import javax.swing.border.LineBorder;
+
+import com.kcatalog.xmlschema.KCatalogXMLSchemaMetaInfo;
+
+import com.kcatalog.gui.KCatalogGuiSearchValueTableModel;
+import com.kcatalog.gui.KCatalogGuiMp3TableRenderer;
+import com.kcatalog.gui.KCatalogGuiSearchTab;
+import com.kcatalog.gui.KCatalogGuiNotesDlg;
+import com.kcatalog.gui.KCatalogGuiDataBaseTab;
+import com.kcatalog.gui.KCatalogGuiBrowseTab;
+import com.kcatalog.gui.KCatalogGuiMenuAction;
+import com.kcatalog.common.KCatalogStatusManager;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.common.KCatalogCommonUtility;
+import com.kcatalog.common.KCatalogConfigureOptions;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import com.kcatalog.common.KCatalogException;
+import com.kcatalog.gui.KCatalogGuiSplashScreen;
+import java.awt.event.ActionListener;
+import java.util.EventListener;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.awt.event.ActionEvent;
+import java.util.Date;
+import java.util.HashMap;
+import java.text.SimpleDateFormat;
+import com.kcatalog.common.KCatalogLookAndFeelManager;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaLookup;
+import com.kcatalog.xmlschema.KCatalogXMLSchemaLocationMapping;
+import com.kcatalog.common.KCatalogDBBkupManager;
+import com.kcatalog.gui.KCatalogProgressIndicatorDlg;
+//import com.digitprop.tonic.TonicLookAndFeel;
+//import com.birosoft.liquid.LiquidLookAndFeel;
+import java.io.File;
+import java.util.Collections;
+
+//import com.Trendy.swing.plaf.TrendyLookAndFeel;
+//import net.sourceforge.napkinlaf.NapkinLookAndFeel;
+//import swing.addon.plaf.threeD.ThreeDLookAndFeel;
+
+
+public class KCatalogGui extends JFrame {
+
+	KCatalogGui mainFrame = null;
+	Container mainFrameCp = null;
+	public JMenuBar menuBar = new JMenuBar();
+	public JMenu menuAction = new JMenu("Actions");
+	public JMenu menuHelp = new JMenu("Help");;
+	public JMenuItem menuAddFolderToDB = new JMenuItem("Add Files & Folder to Library");
+	public JMenuItem menuCreatePlaylist = new JMenuItem("Create New Playlist");
+
+	
+	public JMenuItem menuAbout = new JMenuItem("About");
+	public JMenuItem menuDocumentation = new JMenuItem("Documentation");
+	
+	public JMenu menuFile = new JMenu("File");
+	public JMenuItem menuSaveMapping = new JMenuItem("Save Mapping");
+	public JMenuItem menuExit = new JMenuItem("Exit");
+	
+	public JMenu menuView = new JMenu("View ");
+	
+	public JMenu menuLNF = new JMenu("Look And Feel");
+	public JMenuItem menuLNFSystem = new JMenuItem("System Look And Feel");
+	public JMenuItem menuLNFAqua = new JMenuItem("Aqua Look And Feel");
+	public JMenuItem menuLNFTonic = new JMenuItem("Tonic Look And Feel");
+	public JMenuItem menuLNFDefault= new JMenuItem("Plain Look And Feel");
+	
+	public JMenu menuTools = new JMenu("Tools");
+	public JMenuItem menuToolsNotes = new JMenuItem("Manage Disks..");
+	public JMenuItem menuToolsDBBkup = new JMenuItem("Backup Database");
+	public JCheckBoxMenuItem menuToolsRecoverFromBackup = new JCheckBoxMenuItem("Recover From Backup..");
+	public JMenuItem menuToolsSettings = new JMenuItem("Settings");
+	public JMenuItem menuToolsASearch = new JMenuItem("Advanced Search");
+		
+	
+	public JMenu menuGroupBy = new JMenu("Browse Mode");
+	public JMenuItem menuViewLocation = new JRadioButtonMenuItem("Browse By Location");
+	public JMenuItem menuViewArtist = new JRadioButtonMenuItem("Browse By Artist");
+	public JMenuItem menuViewAlbum = new JRadioButtonMenuItem("Browse By Album");
+	public JMenuItem menuViewGenre = new JRadioButtonMenuItem("Browse By Genre");
+	public JMenuItem menuViewTitle = new JRadioButtonMenuItem("Browse By Title");		
+	public JMenuItem menuViewComment = new JRadioButtonMenuItem("Browse By Comment");		
+	public JMenuItem menuViewPlaylist = new JRadioButtonMenuItem("Browse By Playlist");		
+	
+	
+	public JToolBar toolBar = new JToolBar("kcatalogToolbar");
+	
+	public JMenu menuLibrary = new JMenu("Library");
+	JMenuItem playDirMenu = new JMenuItem("Play");
+	JMenuItem synchronizeDirMenu = 	new JMenuItem("Synchronize");
+	JMenuItem deleteDirMenu = 	new JMenuItem("Delete From DB");
+	JMenuItem openDirMenu = 	new JMenuItem("Open folder");
+	JMenuItem propertyDirMenu = 	new JMenuItem("Additional Info");
+	JMenuItem mapLocationMenu = 	new JMenuItem("Map To New Location");
+	JMenu addToPlaylistDirMenu = 	new JMenu("Add To PlayList");	
+	
+
+	JPanel searchPanel = new JPanel();
+	JPanel dbPanel = new JPanel();
+	JPanel browsePanel = new JPanel();
+	JPanel updatePanel = new JPanel();
+	JTabbedPane tabs = new JTabbedPane();
+	
+	public JMenu menuMusic = new JMenu("Music ");
+	String playMenuMsg = "Play Files " ;
+	 //        "                                          ENTER";
+	String openContainingFolderMenuMsg = 
+						 "Open containing folder";
+						 //"                CTRL + O";
+	String synchronizeMenuMsg = 
+						 "Synchronize";
+						 //"                                 CTRL + R";
+	String deleteMenuMsg = 
+						 "Delete From DB";
+						 //"                               DELETE";	
+	String playListInfoMenuMsg = 
+						 "Playlist Information";
+						 //"                      CTRL + I";
+						
+	JMenuItem playMenu = new JMenuItem(playMenuMsg);
+	JMenuItem openContainingFolderMenu = new JMenuItem(openContainingFolderMenuMsg);
+	JMenuItem synchronizeMenu = 	new JMenuItem(synchronizeMenuMsg);
+	JMenuItem deleteFromPlayListMenu = 	new JMenuItem("Delete from playlist");
+	JMenuItem deleteMenu = 	new JMenuItem(deleteMenuMsg);
+	JMenuItem propertyMenu = 	new JMenuItem("Additional Info");
+	JMenuItem playListInfoMenu = new JMenuItem(playListInfoMenuMsg);		
+	JMenu addFilesPlayListMenu = new JMenu("Add To Playlist");
+	
+	ArrayList playListMenuList = new ArrayList();	
+	KCatalogGuiSearchTab searchTab = new KCatalogGuiSearchTab((JFrame)this,true);
+	KCatalogGuiDataBaseTab dbTab = 	new KCatalogGuiDataBaseTab(this);
+	KCatalogGuiBrowseTab browseTab =new KCatalogGuiBrowseTab();
+	static Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();			
+	static KCatalogGuiSplashScreen splashScr = new KCatalogGuiSplashScreen(screenSize,9);
+
+	int width = 800;
+	int height = 200;
+	int mainFrameWidth = 700;
+	int mainFrameHeight = 500;
+	/*int width = 1000;
+	int height = 500;*/
+
+	public KCatalogGui() {
+		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+		addWindowListener(new WindowAdapter() {
+			public void windowClosing(WindowEvent e) {
+				if(!confirmExit()){
+					return;
+				}			
+									
+			mainFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+			menuSaveMapping.setEnabled(false);
+			dispose();
+			System.exit(0);
+			}
+		});
+		initialize();
+	}
+
+	public boolean confirmExit(){
+		boolean ret = true;
+		if(menuSaveMapping.isEnabled()){
+					int stat = JOptionPane.showConfirmDialog(
+						mainFrame,
+						"Unsaved location mappings present, Do you want to close the application?",
+						"KCatalog",						
+						JOptionPane.YES_NO_OPTION);
+					if( JOptionPane.NO_OPTION == stat ){
+						mainFrame.setVisible(true);
+						ret = false;
+					}	
+		}
+		return ret;
+	}
+	public static void recoverDataFromBkupIfRequired(){
+		
+		KCatalogDBBkupManager dbm = new KCatalogDBBkupManager();		
+		if(dbm.isMarkedForBkup()){
+			splashScr.incrementAndSetText("Recovering data from backup ");
+			dbm.recoverOnStartup();
+			dbm.removeMarkForRecoverOnStartup();
+		}		
+	}
+	public static void incrementCountStart(){		
+		String currentStartCount = 
+		            KCatalogConfigOptions.getOptionValue(KCatalogConstants.CONFIG_CURRENT_START_COUNT);
+		long currentCount = 0;
+		try{
+			currentCount = Long.valueOf(currentStartCount).longValue();
+		}catch(Exception e){
+			currentCount = 0;
+		}
+		currentCount++;
+		KCatalogConfigOptions.setOptionValue(KCatalogConstants.CONFIG_CURRENT_START_COUNT,
+						String.valueOf(currentCount));
+	}
+	
+	public static void resetCountStart(){				
+		long currentCount = 0;
+		KCatalogConfigOptions.setOptionValue(KCatalogConstants.CONFIG_CURRENT_START_COUNT,
+						String.valueOf(currentCount));
+	}
+	
+	public static void bkupDBIfRequired(){
+		String locBkupFreq =  
+		            KCatalogConfigOptions.getOptionValue(KCatalogConstants.CONFIG_BACKUP_DB_FREQ);
+		String currentStartCount = 
+		            KCatalogConfigOptions.getOptionValue(KCatalogConstants.CONFIG_CURRENT_START_COUNT);
+		long currentCount = 0;
+		long freq = 0;
+		try{
+			currentCount = Long.valueOf(currentStartCount).longValue();
+		}catch(Exception e){
+			currentCount = 0;
+		}
+		try{
+			freq = Long.valueOf(locBkupFreq).longValue();
+		}catch(Exception e){
+			freq = 10;
+		}
+		if(currentCount == freq){
+			splashScr.incrementAndSetText("Backup current Database");
+			backUpDBForStartUp();
+		}		
+		if(currentCount >= freq){
+			resetCountStart();					
+		}
+	}
+	
+	public static void backUpDBForStartUp(){
+		KCatalogDBBkupManager dbm = new KCatalogDBBkupManager();
+		dbm.backUpCurrentDB();
+	}
+	
+	public static void main(String args[]) {						
+												
+			if(0 == args.length ){
+				try{
+				splashScr.setVisible(true);			
+				splashScr.incrementAndSetText("Setting Look And Feel");
+				KCatalogLookAndFeelManager km = 
+						new KCatalogLookAndFeelManager();
+				String className = km.getDefaultLNFClassName();
+				UIManager.setLookAndFeel(className);				
+				incrementCountStart();
+				recoverDataFromBkupIfRequired();				
+				bkupDBIfRequired();
+				//System.out.println(a.length);
+							//UIManager.setLookAndFeel();									
+				}catch(Exception e){
+					e.printStackTrace();
+				}
+				try{
+					splashScr.incrementAndSetText("Starting User Interface");
+						new KCatalogGui().startGui();									
+					splashScr.setVisible(false);
+				}catch(Exception e){
+					throw new KCatalogException("Fatal Error Occured",e);
+				}
+			}else{
+				configure(args);
+				System.exit(0);
+			}
+		
+	}
+	
+	private static void configure(String[] args){
+		int stat = JOptionPane.showConfirmDialog(null,
+				"Configure KCatalog With default options?",
+					"KCatalog.." ,
+					JOptionPane.YES_NO_OPTION);
+		KCatalogProgressIndicatorDlg dlg =
+					new KCatalogProgressIndicatorDlg(null,"KCatalog",
+							"Please wait.......");	
+		try{
+		 if(JOptionPane.YES_OPTION == stat){
+			if("-install".equalsIgnoreCase(args[0].trim())){			
+				dlg.startProgress();
+				dlg.startDialog();		
+				File currentDir = new File(".");
+				if("linux".equalsIgnoreCase(args[1].trim())){
+					KCatalogConfigureOptions conf = 
+					new KCatalogConfigureOptions(
+						KCatalogConfigureOptions.CONFIG_TYPE_LINUX,
+					 	currentDir.getAbsolutePath());
+						conf.writeConfigFile();
+				}else{
+					KCatalogConfigureOptions conf = 
+						new KCatalogConfigureOptions(
+					 	KCatalogConfigureOptions.CONFIG_TYPE_WIN,
+					  	System.getProperty("user.dir"));
+					conf.writeConfigFile();
+				}
+				dlg.stopProgress();
+				JOptionPane.showMessageDialog(null,
+					"Configuration succesfully completed!",
+							"KCatalog..",
+								JOptionPane.INFORMATION_MESSAGE);
+			}
+		 }			 
+		}catch(Exception e){
+			dlg.stopProgress();
+			JOptionPane.showMessageDialog(null,
+					"Configuration Failed!",
+							"KCatalog..",
+								JOptionPane.ERROR_MESSAGE);
+			e.printStackTrace();			
+		}
+	}
+	
+	
+	private void startGui(){
+		addComponents();
+	}
+
+	private void addToolMenuItemsToToolMenu(){
+		menuTools.add(menuToolsNotes);
+		menuTools.addSeparator();
+		menuTools.add(menuToolsDBBkup);
+		menuTools.add(menuToolsRecoverFromBackup);
+		menuTools.addSeparator();
+		menuTools.add(menuToolsASearch);
+		menuTools.addSeparator();
+		menuTools.add(menuToolsSettings);		
+	}
+	
+	private void addComponents(){
+	//	test();
+		splashScr.incrementProgress();
+		addMenuBar();	
+		splashScr.incrementProgress();
+		addBoxToContainer();		
+		splashScr.endProgress();
+		splashScr.setText("Starting KCatalog");		
+		try{
+			synchronized(this){
+				this.wait(100);
+			}
+		}
+		catch(Exception e){
+		}
+	//	browseTab.setText();
+		mainFrame.setVisible(true);						
+		//
+		//dbTab.setVisible(true);
+		//
+	}
+
+	private void addMenuItemsToMusicMenu(){
+		menuMusic.add(playMenu);
+		menuMusic.add(openContainingFolderMenu);
+		menuMusic.addSeparator();
+		
+		menuMusic.add(addFilesPlayListMenu);
+		menuMusic.add(deleteFromPlayListMenu);
+		menuMusic.add(playListInfoMenu);			
+		menuMusic.addSeparator();
+						
+		menuMusic.add(deleteMenu);
+		menuMusic.add(synchronizeMenu);
+		menuMusic.add(propertyMenu);						
+		
+		addActionListenersToMusicMenuItems();
+		setNamesForMusicMenuItems();
+		
+	}
+	
+	private void addActionListenersToMusicMenuItems(){
+		KCatalogGuiBrowseTab.PopupMenuSelectionListener pl
+				=	 browseTab.new PopupMenuSelectionListener();
+		playMenu.addActionListener(pl);
+		openContainingFolderMenu.addActionListener(pl);
+		synchronizeMenu.addActionListener(pl);
+		deleteFromPlayListMenu.addActionListener(pl);
+		deleteMenu.addActionListener(pl);
+		propertyMenu.addActionListener(pl);
+		playListInfoMenu.addActionListener(pl);			
+		
+		playMenu.setAccelerator(KeyStroke.getKeyStroke(
+									KeyEvent.VK_ENTER,Event.CTRL_MASK));
+		deleteMenu.setAccelerator(KeyStroke.getKeyStroke(
+									KeyEvent.VK_DELETE,Event.CTRL_MASK));	
+		openContainingFolderMenu.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_O,Event.CTRL_MASK));
+		playListInfoMenu.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_I,Event.CTRL_MASK));
+		synchronizeMenu.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_R,Event.CTRL_MASK));
+		
+		
+		/*KCatalogGuiBrowseTab.PopupMenuPlaylistSelectionListener ppl
+				=	 browseTab.new PopupMenuPlaylistSelectionListener();
+		addFilesPlayListMenu.addActionListener(ppl);*/
+	}
+	
+	private void addLookAndFeelMenuItems(){
+		LNFMenuItemListener lm = new LNFMenuItemListener();
+		KCatalogLookAndFeelManager km = 
+								new KCatalogLookAndFeelManager();	
+		ArrayList list = km.getLNFNames();
+		Collections.sort(list);
+		Iterator it = list.iterator();
+		ButtonGroup bg = new ButtonGroup();
+		int count = 0;
+		while(it.hasNext()){
+			String lnfName = it.next().toString();
+			JRadioButtonMenuItem menuLNFItem = new JRadioButtonMenuItem(lnfName);
+			String defaultLNF = km.getDefaultLNFName();
+			if(defaultLNF.equals(lnfName)){
+				menuLNFItem.setSelected(true);
+			}
+			menuLNFItem.addActionListener(lm);	
+			menuLNFItem.setName(lnfName);
+			count++;
+			menuLNF.add(menuLNFItem);
+			if( 2 == count || 5 == count ||  12 == count){
+				menuLNF.addSeparator();	
+			}
+			bg.add(menuLNFItem);
+		}		
+	}
+	
+	private void addActionListenersToLibraryMenuItems(){
+		KCatalogGuiBrowseTab.TreePopupMenuSelectionListener tl
+				=	 browseTab.new TreePopupMenuSelectionListener();
+		playDirMenu.addActionListener(tl);
+		addToPlaylistDirMenu.addActionListener(tl);
+		synchronizeDirMenu.addActionListener(tl);
+		deleteDirMenu.addActionListener(tl);
+		propertyDirMenu.addActionListener(tl);
+		mapLocationMenu.addActionListener(tl);
+		openDirMenu.addActionListener(tl);					
+		
+		
+		playDirMenu.setAccelerator(KeyStroke.getKeyStroke(
+									KeyEvent.VK_ENTER,Event.SHIFT_MASK));
+		deleteDirMenu.setAccelerator(KeyStroke.getKeyStroke(
+									KeyEvent.VK_DELETE,Event.SHIFT_MASK));	
+		openDirMenu.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_O,Event.SHIFT_MASK));		
+		synchronizeDirMenu.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_R,Event.SHIFT_MASK));
+		mapLocationMenu.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_M,Event.SHIFT_MASK));
+	}
+	
+	private void addActionListenersToToolMenuItems(){
+		MenuItemListener ml = new MenuItemListener();
+		menuToolsDBBkup.addActionListener(ml);
+		menuToolsRecoverFromBackup.addActionListener(ml);
+		menuToolsSettings.addActionListener(ml);
+		menuToolsASearch.addActionListener(ml);
+		menuToolsNotes.addActionListener(ml);
+		menuToolsSettings.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_P,Event.CTRL_MASK));
+		menuToolsNotes.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_T,Event.CTRL_MASK));
+		menuToolsASearch.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_F,Event.CTRL_MASK));
+	}		
+	
+	private void setNamesForToolsMenuItems(){
+		menuToolsDBBkup.setName("menuToolsDBBkup");
+		menuToolsRecoverFromBackup.setName("menuToolsRecoverFromBackup");
+		menuToolsSettings.setName("menuToolsSettings");
+		menuToolsASearch.setName("menuToolsASearch");
+		menuToolsNotes.setName("menuToolsNotes");
+	}
+		
+	private void setNamesForMusicMenuItems(){
+		playMenu.setName("playMenu");						
+		openContainingFolderMenu.setName("openContainingFolderMenu");
+		deleteFromPlayListMenu.setName("deleteFromPlayListMenu");
+		playListInfoMenu.setName("playListInfoMenu");
+		synchronizeMenu.setName("synchronizeMenu");
+		deleteMenu.setName("deleteMenu");
+		propertyMenu.setName("propertyMenu");
+		addFilesPlayListMenu.setName("addFilesPlayListMenu");
+	}
+
+	private void addBoxToContainer(){
+			
+		
+		browsePanel.add(BorderLayout.NORTH,
+				browseTab.getVerticalBoxForDBTab(width,height,mainFrame));						
+		//tabs.add("Browse Mode",browsePanel);		
+		
+		searchPanel.add(BorderLayout.NORTH,
+				searchTab.getVerticalBoxForSearchTab(600,480,mainFrame));						
+		//tabs.add(" Advanced Search    ",new JScrollPane(searchPanel));
+			
+		Box vb = Box.createVerticalBox();
+		
+		vb.add(browsePanel);
+		mainFrameCp.add(BorderLayout.NORTH,vb);
+		searchPanel.setVisible(true);	
+		
+	}
+
+	private void addMenuBar(){
+
+		menuBar.setName("menuBar");
+		menuAction.setName("menuAction");
+		menuFile.setName("menuFile");
+		
+		menuExit.setName("menuExit");
+		menuSaveMapping.setName("menuSaveMapping");
+		menuAddFolderToDB.setName("menuAddFolderToDB");
+		menuCreatePlaylist.setName("menuCreatePlaylist");
+		menuAbout.setName("menuAbout");
+		menuDocumentation.setName("menuDocumentation");
+		menuHelp.setName("menuHelp");
+
+		
+		menuLibrary.add(Box.createVerticalGlue());
+		//menuLibrary.add(menuAddFolderToDB);
+		//menuLibrary.add(menuCreatePlaylist);
+		
+		menuFile.add(menuAddFolderToDB);
+		menuFile.add(menuCreatePlaylist);
+		menuFile.addSeparator();
+		menuFile.add(menuSaveMapping);
+		menuSaveMapping.setEnabled(false);
+		menuFile.addSeparator();
+		menuFile.add(menuExit);
+		
+
+		menuHelp.add(menuAbout);
+		menuHelp.add(Box.createVerticalGlue());
+		menuHelp.add(menuDocumentation);
+		addMenusToViewMenu();
+		
+		menuBar.add(menuFile);
+		menuBar.add(menuView);
+		//menuBar.add(menuAction);
+		menuLibrary.setText("Folder");		
+		menuBar.add(menuLibrary);
+		addMenuItemsToLibraryMenu();
+		
+		menuBar.add(menuMusic);						
+		addMenuItemsToMusicMenu();
+			
+		menuBar.add(menuTools);
+		addToolMenuItemsToToolMenu();
+		addActionListenersToToolMenuItems();
+		setNamesForToolsMenuItems();	
+		
+		menuBar.add(Box.createHorizontalStrut(1));
+		menuBar.add(menuHelp);
+		menuBar.setBorder(LineBorder.createBlackLineBorder());
+		mainFrame.setJMenuBar(menuBar);
+
+	
+		menuHelp.setMnemonic(KeyEvent.VK_H);
+		menuTools.setMnemonic(KeyEvent.VK_C);
+		menuLibrary.setMnemonic(KeyEvent.VK_L);
+		menuFile.setMnemonic(KeyEvent.VK_F);
+		menuView.setMnemonic(KeyEvent.VK_V);
+		menuMusic.setMnemonic(KeyEvent.VK_M);
+		menuTools.setMnemonic(KeyEvent.VK_T);
+		
+	}
+	
+	private void addMenuItemsToLibraryMenu(){	 
+		menuLibrary.add(playDirMenu);
+		menuLibrary.add(openDirMenu);
+		menuLibrary.addSeparator();
+		
+		menuLibrary.add(addToPlaylistDirMenu);
+		menuLibrary.addSeparator();
+		
+		menuLibrary.add(mapLocationMenu);
+		menuLibrary.addSeparator();
+		
+		menuLibrary.add(synchronizeDirMenu);
+		menuLibrary.add(deleteDirMenu);		
+		menuLibrary.add(propertyDirMenu);						
+		
+		setNamesForLibraryMenuItems();
+		addActionListenersToLibraryMenuItems();
+	}
+	
+	private void setNamesForLibraryMenuItems(){
+		playDirMenu.setName("playDirMenu");						
+		addToPlaylistDirMenu.setName("addToPlaylistDirMenu");
+		synchronizeDirMenu.setName("synchronizeDirMenu");
+		deleteDirMenu.setName("deleteDirMenu");
+		propertyDirMenu.setName("propertyDirMenu");
+		mapLocationMenu.setName("mapLocationMenu");		
+		openDirMenu.setName("openDirMenu");
+	}
+	
+	private void setNamesForLNFMenu(){
+		menuLNFSystem.setName("menuLNFSystem");
+		menuLNFDefault.setName("menuLNFDefault");
+		menuLNFTonic.setName("menuLNFTonic");
+		menuLNFAqua.setName("menuLNFAqua");			
+	}
+
+	private void addMenusToViewMenu(){
+		menuView.add(menuGroupBy);
+		menuGroupBy.add(menuViewLocation);
+		menuGroupBy.addSeparator();						
+		menuGroupBy.add(menuViewArtist);
+		menuGroupBy.add(menuViewAlbum);	
+		menuGroupBy.add(menuViewGenre);	
+		//menuGroupBy.add(menuViewTitle);
+		menuGroupBy.addSeparator();
+		menuGroupBy.add(menuViewPlaylist);
+		menuGroupBy.addSeparator();
+		menuGroupBy.add(menuViewComment);
+			
+			
+		menuView.add(menuLNF);
+	
+		setNamesForLNFMenu();
+		addLookAndFeelMenuItems();
+		
+		
+		menuViewLocation.setName("menuViewLocation");
+		menuViewArtist.setName("menuViewArtist");
+		menuViewPlaylist.setName("menuViewPlaylist");
+		menuViewAlbum.setName("menuViewAlbum");
+		menuViewGenre.setName("menuViewGenre");
+		menuViewTitle.setName("menuViewTitle");
+		menuViewComment.setName("menuViewComment");
+		
+		MenuItemListener ml = new MenuItemListener();
+		menuViewLocation.addActionListener(ml);
+		menuViewArtist.addActionListener(ml);			
+		menuViewPlaylist.addActionListener(ml);
+		menuViewAlbum.addActionListener(ml);
+		menuViewGenre.addActionListener(ml);
+		menuViewTitle.addActionListener(ml);
+		menuViewComment.addActionListener(ml);
+		
+		
+		menuViewLocation.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_L,Event.CTRL_MASK | Event.SHIFT_MASK));
+		menuViewArtist.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_A,Event.CTRL_MASK | Event.SHIFT_MASK));
+		menuViewPlaylist.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_P,Event.CTRL_MASK | Event.SHIFT_MASK));
+		menuViewAlbum.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_B,Event.CTRL_MASK | Event.SHIFT_MASK));
+		menuViewGenre.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_G,Event.CTRL_MASK | Event.SHIFT_MASK));
+		menuViewComment.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_C,Event.CTRL_MASK | Event.SHIFT_MASK));
+					
+		ButtonGroup bg = new ButtonGroup();
+		bg.add(menuViewLocation);
+		bg.add(menuViewArtist);		
+		bg.add(menuViewAlbum);
+		bg.add(menuViewGenre);
+		bg.add(menuViewTitle);
+		bg.add(menuViewComment);
+		bg.add(menuViewPlaylist);
+		
+	}
+
+
+	private void initialize(){
+		System.out.println("Starting KCatalogGui...");
+		Dimension size = Toolkit.getDefaultToolkit().getScreenSize();
+		size = adjustForSize(size);		
+		mainFrameHeight = (int)size.getHeight() - 40 ;
+		mainFrameWidth = (int)size.getWidth() - 70;		
+		width = (int)size.getWidth() - 80;
+		height = (int)size.getHeight() - 85;
+		setMainFrameProperties();
+		setActionListenersForMenItems();
+	
+	}
+	
+	private Dimension adjustForSize(Dimension size){
+	  	String limitMaxSize = 
+		   KCatalogConfigOptions.getOptionValue(
+		   		KCatalogConstants.CONFIG_LIMIT_MAX_SIZE).trim();
+		if("true".equals(limitMaxSize)){
+			int width = (int)size.getWidth();
+			int height = (int)size.getHeight();
+			width = ( width > 1024 )?1024 : width;
+			height = ( height > 768 )?768 : height;
+			size = new Dimension(width,height);
+		}
+		return size;
+	}
+	
+	private void setActionListenersForMenItems(){
+		MenuItemListener ml = new MenuItemListener();
+		
+		menuAbout.addActionListener(ml);
+		menuDocumentation.addActionListener(ml);
+		menuExit.addActionListener(ml);
+		menuSaveMapping.addActionListener(ml);
+		menuAddFolderToDB.addActionListener(ml);
+		menuCreatePlaylist.addActionListener(ml);
+		
+		
+		menuCreatePlaylist.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_N,Event.CTRL_MASK));
+		menuAddFolderToDB.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_W,Event.CTRL_MASK));
+		menuExit.setAccelerator(
+			KeyStroke.getKeyStroke(KeyEvent.VK_Q,Event.CTRL_MASK));
+	}
+		
+	
+	public void showAllBrowsePlaylistItems(){
+		showAllBrowseMenuItems(false);
+		playDirMenu.setEnabled(true);
+		addToPlaylistDirMenu.setEnabled(true);
+		openDirMenu.setEnabled(true);
+		deleteDirMenu.setEnabled(true);
+		menuLibrary.setText("Playlist");
+	}
+	
+	public void showAllBrowseMenuItems(boolean hide){
+		playDirMenu.setEnabled(hide);
+		addToPlaylistDirMenu.setEnabled(hide);
+		synchronizeDirMenu.setEnabled(hide);
+		deleteDirMenu.setEnabled(hide);
+		openDirMenu.setEnabled(hide);
+		propertyDirMenu.setEnabled(hide);
+		mapLocationMenu.setEnabled(hide);		
+	}
+	
+	public void showAllBrowseLocationItems(){
+		showAllBrowseMenuItems(true);
+		menuLibrary.setText("Folder");		
+	}
+	
+	private Component getToolbar(){
+		Action ml =  mainFrame.new MenuItemListener();
+		toolBar.add((Action)ml);
+		return toolBar;
+	}
+	
+	
+	public void showAllBrowseMp3AttributeItems(){
+		showAllBrowseMenuItems(false);
+		playDirMenu.setEnabled(true);
+		addToPlaylistDirMenu.setEnabled(true);
+		deleteDirMenu.setEnabled(true);
+		menuLibrary.setText(getDisplayTextForMp3Attribute());
+	}
+	
+	public String getDisplayTextForMp3Attribute(){
+		String text = "Library";
+		if(browseTab.BROWSE_ALBUM.equals(
+						browseTab.browseMode)){
+			text = "Album";
+		}
+		if(browseTab.BROWSE_ARTIST.equals(
+						browseTab.browseMode)){
+			text = "Artist";
+		}
+		if(browseTab.BROWSE_COMMENT.equals(
+						browseTab.browseMode)){
+			text = "Comment";
+		}
+		if(browseTab.BROWSE_GENRE.equals(
+						browseTab.browseMode)){
+			text = "Genre";
+		}
+		if(browseTab.BROWSE_LOCATION.equals(
+						browseTab.browseMode)){
+			text = "Folder";
+		}
+		if(browseTab.BROWSE_PLAYLIST.equals(
+						browseTab.browseMode)){
+			text = "Playlist";
+		}
+		if(browseTab.BROWSE_TITLE.equals(
+						browseTab.browseMode)){
+			text = "Title";
+		}		
+		return text;
+	}
+	
+	private void setIconForFrame(){
+		String imageLoc = KCatalogCommonUtility.getConfigPath()+
+							 KCatalogConfigOptions.getSeparator()
+								+ "icon.png";	
+		ImageIcon icon = new ImageIcon(imageLoc);
+		setIconImage(icon.getImage());
+	}
+	
+	private void setMainFrameProperties(){
+		mainFrame = this;
+		mainFrameCp = mainFrame.getContentPane();
+		setIconForFrame();
+		//mainFrame.setSize(width, height);
+		KCatalogStatusManager.setParentForMessage(mainFrame);
+		mainFrame.setTitle("KCatalog - MP3 Catalog Application");
+		mainFrame.setSize(mainFrameWidth,mainFrameHeight);
+	}
+	
+	class MenuItemListener extends AbstractAction implements ActionListener{
+		public void actionPerformed(ActionEvent e) {
+			try{
+				KCatalogGuiMenuAction kcm =
+							new KCatalogGuiMenuAction(mainFrame,e);
+				kcm.processAction();
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}	
+	}
+	
+	class LNFMenuItemListener implements ActionListener{
+		public void actionPerformed(ActionEvent e) {
+			try{
+				KCatalogGuiMenuAction kcm =
+							new KCatalogGuiMenuAction(mainFrame,e);
+				kcm.processLNFAction();
+			}catch(Exception exception){
+				KCatalogException.logIfDebugTrue(exception);
+			}
+		}	
+	}
+	
+	public void test(){
+	/*	System.out.println(
+		KCatalogXMLSchemaLookup.getFileLocationList("D:\\Songs\\English",
+									KCatalogXMLSchemaLookup.SEARCH_OP_TYPE_CHILDREN));*/
+	}
+	
+	
+	
+}
+

@@ -1,0 +1,85 @@
+/***************************************************************************
+ *   Copyright (C) 2006 by krishnakumar.kr                                 *
+ *   krishnakumar.kr@gmail.com                                             *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
+package com.kcatalog.common;
+import java.lang.RuntimeException;
+import com.kcatalog.common.KCatalogStatusManager;
+import com.kcatalog.gui.KCatalogProgressIndicatorDlg;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
+import com.kcatalog.common.KCatalogConfigOptions;
+import com.kcatalog.common.KCatalogConstants;
+import java.util.Date;
+import java.text.SimpleDateFormat;
+
+public class KCatalogException extends RuntimeException {
+	private static String logFilePath = 
+			KCatalogConfigOptions.getOptionValue(KCatalogConstants.CONFIG_INSTALLATIONFOLDER)+KCatalogConfigOptions.getSeparator() +"KCatalog.log";
+	
+	public KCatalogException(String errorId,Exception e) {
+		
+		//System.out.println("KCatalog : " + errorId);		
+		//e.printStackTrace();
+		logIfDebugTrue(e);
+		KCatalogProgressIndicatorDlg.getCurrentRef().stopProgress();
+		KCatalogStatusManager.addToErrorMap(errorId,KCatalogStatusManager.STATUS_ERROR);
+		KCatalogStatusManager.showMessages(null);
+		KCatalogStatusManager.clear();
+		KCatalogProgressIndicatorDlg.getCurrentRef().stopProgress();
+		
+	}	
+	
+	public static void logIfDebugTrue(Exception currentException){
+		
+		String debugStat =
+				 KCatalogConfigOptions.getOptionValue(KCatalogConstants.CONFIG_DEBUG);
+		KCatalogProgressIndicatorDlg.getCurrentRef().stopProgress();	         	    
+		if("true".equals(debugStat)){
+			try{
+				FileOutputStream fos = new FileOutputStream(logFilePath,true);
+				long time = System.currentTimeMillis();		
+				Date dt = new Date(time);
+				SimpleDateFormat df = new SimpleDateFormat();
+				String log = "Exception on - " + df.format(dt) + "\n";		
+				fos.write(log.getBytes());
+				fos.flush();
+				fos.close();
+				fos = new FileOutputStream(logFilePath,true);
+				PrintWriter pw = new PrintWriter(fos);
+				currentException.printStackTrace(pw);
+				pw.flush();
+				pw.close();
+			}catch(Exception e){
+				System.out.println("Could not log exception");
+			}
+		}
+	}
+	
+	public KCatalogException(String errorId) {
+		
+		//System.out.println("KCatalog : " + errorId);
+		//this.printStackTrace();
+		logIfDebugTrue(this);					
+		KCatalogProgressIndicatorDlg.getCurrentRef().stopProgress();	
+		KCatalogStatusManager.addToErrorMap(errorId,KCatalogStatusManager.STATUS_ERROR);
+		KCatalogStatusManager.showMessages(null);
+		KCatalogStatusManager.clear();
+		
+	}	
+}

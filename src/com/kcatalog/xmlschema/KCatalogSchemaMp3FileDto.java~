@@ -1,0 +1,46 @@
+package com.kcatalog.xmlschema;
+import com.kcatalog.fileutils.Mp3FileDto;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+
+public class KCatalogSchemaMp3FileDto extends
+										Mp3FileDto{
+	Document doc = null;
+	Node parentLocationNode = null;
+	Node mp3FileNode = null;
+	String xmlFileName = "";
+		
+	public void setXmlFileName(String xmlFileName) {
+		this.xmlFileName = xmlFileName; 
+	}
+
+	public String getXmlFileName() {
+		return xmlFileName; 
+	}
+	
+	public void setDoc(Document doc) {
+		this.doc = doc; 
+		
+	}
+
+	public void setParentLocationNode(Node parentLocationNode) {
+		this.parentLocationNode = parentLocationNode; 
+	}
+
+	public void setMp3FileNode(Node mp3FileNode) {
+		this.mp3FileNode = mp3FileNode; 
+	}
+
+	public Document getDoc() {
+		return this.doc; 
+	}
+
+	public Node getParentLocationNode() {
+		return parentLocationNode; 
+	}
+
+	public Node getMp3FileNode() {
+		return mp3FileNode; 
+	}
+}

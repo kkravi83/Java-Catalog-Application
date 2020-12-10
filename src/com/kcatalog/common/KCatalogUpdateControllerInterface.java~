@@ -1,0 +1,7 @@
+package com.kcatalog.common;
+import com.kcatalog.fileutils.Mp3FileDto;
+
+public interface KCatalogUpdateControllerInterface {
+	public void updateDBAndWriteUIStatus(Mp3FileDto mp3FileDto);
+	
+}
